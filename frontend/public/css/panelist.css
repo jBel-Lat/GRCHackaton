@@ -432,3 +432,58 @@
         max-height: none;
     }
 }
+
+/* Strong mobile/tablet override for real devices and webviews */
+@media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+    .container {
+        display: block;
+        width: 100%;
+    }
+
+    .sidebar {
+        display: flex !important;
+        position: sticky;
+        top: 0;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 0.9rem 1rem;
+        z-index: 1200;
+    }
+
+    .sidebar-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+    }
+
+    .nav-item {
+        flex: 1 1 100%;
+        justify-content: center;
+        text-align: center;
+        padding: 0.65rem 0.6rem;
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+        width: 100%;
+        max-width: 100%;
+        padding: 1rem;
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.7rem;
+    }
+
+    .grading-input-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .grading-input-group input {
+        width: 100%;
+        max-width: 100%;
+    }
+}
