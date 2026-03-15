@@ -8,20 +8,21 @@ document.addEventListener('DOMContentLoaded', () => {
 const ADMIN_BASE = '/admin';
 
 function checkAdminAuth() {
-    const token = localStorage.getItem('adminToken');
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
     const path = window.location.pathname;
     const isLoginPage =
-        path === '/' ||
-        path.includes('admin/index.html') ||
-        path === ADMIN_BASE ||
-        path === encodeURI(ADMIN_BASE);
+        path === '/admin/' ||
+        path === '/admin' ||
+        path.endsWith('/admin/index.html') ||
+        path.endsWith('/index.html');
 
     if (!token && !isLoginPage) {
-        window.location.href = ADMIN_BASE;
+        window.location.href = '/admin/';
     }
 
     if (token && isLoginPage) {
         window.location.href = '/admin/dashboard.html';
+        return;
     }
 
     // Prevent browser back navigation from returning to login after authenticated
@@ -158,7 +159,7 @@ async function handleLogin(e) {
 
 async function handleLogout() {
     await adminApi.logout();
-    window.location.href = '/admin/index.html';
+    window.location.href = '/admin/';
 }
 
 function switchSection(section) {

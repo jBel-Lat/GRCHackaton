@@ -6,16 +6,13 @@ const API_BASE_URL = (window.location.hostname === 'localhost' && window.locatio
 
 class AdminApi {
     constructor() {
-        this.token = localStorage.getItem('adminToken');
+        this.token = localStorage.getItem('adminToken') || localStorage.getItem('token');
     }
 
     getHeaders() {
-        // always pull latest token in case it changed (e.g., after navigation)
-        this.token = localStorage.getItem('adminToken');
-        if (!this.token) {
-            // force re-auth if token is missing
-            window.location.href = '/admin/index.html';
-        }
+        // Always pull latest token in case it changed.
+        // No redirect here to avoid redirect loops during failed auth/API retries.
+        this.token = localStorage.getItem('adminToken') || localStorage.getItem('token');
         return {
             'Content-Type': 'application/json',
             'Authorization': this.token ? `Bearer ${this.token}` : ''
@@ -33,6 +30,7 @@ class AdminApi {
             if (data.success) {
                 this.token = data.token;
                 localStorage.setItem('adminToken', data.token);
+                localStorage.setItem('token', data.token);
                 localStorage.setItem('adminUser', JSON.stringify(data.user));
             }
             return data;
@@ -44,6 +42,7 @@ class AdminApi {
 
     async logout() {
         localStorage.removeItem('adminToken');
+        localStorage.removeItem('token');
         localStorage.removeItem('adminUser');
         this.token = null;
     }
