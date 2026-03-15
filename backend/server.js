@@ -31,6 +31,10 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'Server is running' });
 });
 
+app.get('/favicon.ico', (req, res) => {
+    res.status(204).end();
+});
+
 // Admin login/dashboard paths
 app.get(ADMIN_BASE, (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/admin/index.html'));

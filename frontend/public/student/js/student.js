@@ -64,14 +64,6 @@ async function handleLogin(e) {
     const studentNumber = document.getElementById('studentNumber').value.trim();
     const errorMessage = document.getElementById('errorMessage');
 
-    const placeholderName = 'Ralph Felix Florita';
-    const placeholderId = '2024-07-00507';
-    const hasFlorita = name.toLowerCase().includes('florita');
-    if (hasFlorita || name.toLowerCase() === placeholderName.toLowerCase() || studentNumber === placeholderId) {
-        window.location.href = '/student/bad.html';
-        return;
-    }
-
     try {
         const result = await studentApi.login(name, studentNumber);
         if (result.success) {

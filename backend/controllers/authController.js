@@ -198,7 +198,8 @@ exports.panelistLogin = async (req, res) => {
 // Student login (no password, use name + student_number pair)
 exports.studentLogin = async (req, res) => {
     try {
-        const { name, student_number } = req.body;
+        const name = String(req.body?.name || '').trim();
+        const student_number = String(req.body?.student_number || '').trim();
 
         if (!name || !student_number) {
             return res.status(400).json({
@@ -209,9 +210,50 @@ exports.studentLogin = async (req, res) => {
 
         const connection = await pool.getConnection();
         let [rows] = await connection.query(
-            'SELECT * FROM student WHERE name = ? AND student_number = ?',
-            [name, student_number]
+            'SELECT * FROM student WHERE student_number = ? LIMIT 1',
+            [student_number]
         );
+
+        if (rows.length > 0) {
+            const existingStudent = rows[0];
+            const sameName = String(existingStudent.name || '').trim().toLowerCase() === name.toLowerCase();
+            connection.release();
+
+            if (!sameName) {
+                return res.status(401).json({
+                    success: false,
+                    message: 'Student name and ID do not match'
+                });
+            }
+
+            if (existingStudent.status !== 'active') {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Your account is inactive'
+                });
+            }
+
+            const token = jwt.sign(
+                {
+                    id: existingStudent.id,
+                    student_number: existingStudent.student_number,
+                    role: 'student'
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+
+            return res.json({
+                success: true,
+                message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
+                token,
+                user: {
+                    id: existingStudent.id,
+                    name: existingStudent.name,
+                    student_number: existingStudent.student_number
+                }
+            });
+        }
 
         // If student doesn't exist, try to create one
         if (rows.length === 0) {
@@ -224,21 +266,33 @@ exports.studentLogin = async (req, res) => {
                 );
                 // Fetch the newly created student
                 [rows] = await connection.query(
-                    'SELECT * FROM student WHERE name = ? AND student_number = ?',
-                    [name, student_number]
+                    'SELECT * FROM student WHERE student_number = ? LIMIT 1',
+                    [student_number]
                 );
             } catch (insertErr) {
-                console.error('Auto-create student failed:', insertErr.message);
-                // Fall through and return credentials error
+                // Handle duplicate insert race by reloading the same student_number.
+                if (insertErr && insertErr.code === 'ER_DUP_ENTRY') {
+                    [rows] = await connection.query(
+                        'SELECT * FROM student WHERE student_number = ? LIMIT 1',
+                        [student_number]
+                    );
+                } else {
+                    connection.release();
+                    console.error('Auto-create student failed:', insertErr.message);
+                    return res.status(500).json({
+                        success: false,
+                        message: 'Unable to create student account'
+                    });
+                }
             }
         }
 
         connection.release();
 
         if (rows.length === 0) {
-            return res.status(401).json({
+            return res.status(500).json({
                 success: false,
-                message: ERROR_MESSAGES.INVALID_CREDENTIALS
+                message: 'Student account not found'
             });
         }
 
