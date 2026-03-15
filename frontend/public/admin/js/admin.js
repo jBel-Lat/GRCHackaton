@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
 });
 
-const ADMIN_BASE = '/$2b$10$RkzXnPj4T9OQh7m9l1LkOe6dTjY9pJv8b3Zf4R2nKxLq5VgHcW8aS';
+const ADMIN_BASE = '/admin';
 
 function checkAdminAuth() {
     const token = localStorage.getItem('adminToken');
@@ -48,19 +48,10 @@ function displayAdminName() {
 function initializeEventListeners() {
     const loginForm = document.getElementById('loginForm');
     const logoutBtn = document.getElementById('logoutBtn');
+    initializePasswordToggles();
     // show name if on dashboard
     displayAdminName();
     // prefill username or show welcome on login page
-    const welcome = document.getElementById('welcomeBack');
-    const usernameInput = document.getElementById('username');
-    if (welcome && usernameInput) {
-        const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
-        if (user && user.username) {
-            welcome.textContent = `Welcome back, ${user.username}`;
-            usernameInput.value = user.username;
-        }
-    }
-
     if (loginForm) {
         loginForm.addEventListener('submit', handleLogin);
     }
@@ -124,6 +115,22 @@ function initializeEventListeners() {
         }
     });
 
+}
+
+function initializePasswordToggles() {
+    const toggleButtons = document.querySelectorAll('[data-toggle-password]');
+    toggleButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const inputId = button.getAttribute('data-toggle-password');
+            const passwordInput = inputId ? document.getElementById(inputId) : null;
+            if (!passwordInput) return;
+
+            const showPassword = passwordInput.type === 'password';
+            passwordInput.type = showPassword ? 'text' : 'password';
+            button.classList.toggle('is-visible', showPassword);
+            button.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+        });
+    });
 }
 
 async function handleLogin(e) {

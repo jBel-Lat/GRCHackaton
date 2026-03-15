@@ -5,7 +5,8 @@ const { ERROR_MESSAGES, SUCCESS_MESSAGES } = require('../config/constants');
 
 exports.adminLogin = async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const username = (req.body?.username || '').trim();
+        const password = req.body?.password || '';
 
         if (!username || !password) {
             return res.status(400).json({
@@ -15,24 +16,66 @@ exports.adminLogin = async (req, res) => {
         }
 
         const connection = await pool.getConnection();
-        const [rows] = await connection.query('SELECT * FROM admin WHERE username = ?', [username]);
-        connection.release();
+        const [rows] = await connection.query(
+            'SELECT * FROM admin WHERE LOWER(TRIM(username)) = LOWER(TRIM(?)) LIMIT 1',
+            [username]
+        );
 
-        if (rows.length === 0) {
+        const admin = rows[0];
+        if (!admin) {
+            connection.release();
             return res.status(401).json({
                 success: false,
                 message: ERROR_MESSAGES.INVALID_CREDENTIALS
             });
         }
+        let passwordMatch = false;
 
-        const admin = rows[0];
-        const passwordMatch = await bcrypt.compare(password, admin.password);
+        const storedPassword = String(admin.password || '');
+        const inputPassword = String(password || '');
+
+        // Accept standard bcrypt prefixes: $2a$, $2b$, $2y$
+        if (storedPassword && /^\$2[aby]\$/.test(storedPassword)) {
+            passwordMatch = await bcrypt.compare(inputPassword, storedPassword);
+        } else if (password === admin.password) {
+            // plaintext stored; accept once and upgrade to bcrypt hash (best-effort, non-blocking)
+            passwordMatch = true;
+            connection.release(); // release early before upgrade to avoid holding locks
+            try {
+                const newHash = await bcrypt.hash(inputPassword, 10);
+                await pool.query('UPDATE admin SET password = ? WHERE id = ?', [newHash, admin.id]); // separate connection
+                admin.password = newHash;
+            } catch (err) {
+                console.error('Admin password upgrade failed (ignored):', err.code || err.message);
+            }
+        } else if (
+            inputPassword.trim() === storedPassword.trim() ||
+            inputPassword.trim().toLowerCase() === storedPassword.trim().toLowerCase()
+        ) {
+            // Legacy tolerance for plaintext passwords with accidental casing/whitespace variations.
+            passwordMatch = true;
+            connection.release();
+            try {
+                const newHash = await bcrypt.hash(inputPassword.trim(), 10);
+                await pool.query('UPDATE admin SET password = ? WHERE id = ?', [newHash, admin.id]);
+                admin.password = newHash;
+            } catch (err) {
+                console.error('Admin password upgrade failed (ignored):', err.code || err.message);
+            }
+        } else {
+            connection.release();
+        }
 
         if (!passwordMatch) {
             return res.status(401).json({
                 success: false,
                 message: ERROR_MESSAGES.INVALID_CREDENTIALS
             });
+        }
+
+        // if still held, release connection
+        if (connection && connection.connection && !connection.connection._closing) {
+            try { connection.release(); } catch (e) {}
         }
 
         const token = jwt.sign(

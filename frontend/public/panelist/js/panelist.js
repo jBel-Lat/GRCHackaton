@@ -31,6 +31,7 @@ function displayPanelistName() {
 function initializeEventListeners() {
     const loginForm = document.getElementById('loginForm');
     const logoutBtn = document.getElementById('logoutBtn');
+    initializePasswordToggles();
     // show name if on dashboard
     displayPanelistName();
     // prefill username or welcome on login page
@@ -293,6 +294,22 @@ async function submitGrades(participantId, criteriaList) {
     } else {
         alert('Please enter at least one grade');
     }
+}
+
+function initializePasswordToggles() {
+    const toggleButtons = document.querySelectorAll('[data-toggle-password]');
+    toggleButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const inputId = button.getAttribute('data-toggle-password');
+            const passwordInput = inputId ? document.getElementById(inputId) : null;
+            if (!passwordInput) return;
+
+            const showPassword = passwordInput.type === 'password';
+            passwordInput.type = showPassword ? 'text' : 'password';
+            button.classList.toggle('is-visible', showPassword);
+            button.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+        });
+    });
 }
 
 // Load events on page ready
