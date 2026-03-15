@@ -3,6 +3,14 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
+function getRequiredEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
 async function runSqlFile(filePath) {
   const fullPath = path.resolve(__dirname, '..', '..', filePath);
   if (!fs.existsSync(fullPath)) {
@@ -14,10 +22,10 @@ async function runSqlFile(filePath) {
 
   // Create connection with multipleStatements enabled
   const connection = await mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT || 3306,
+    host: getRequiredEnv('DB_HOST'),
+    user: getRequiredEnv('DB_USER'),
+    password: getRequiredEnv('DB_PASSWORD'),
+    port: Number(process.env.DB_PORT || 3306),
     multipleStatements: true
   });
 
@@ -37,13 +45,13 @@ async function runSqlFile(filePath) {
   try {
     // First create the database if not exists and then run schema
     const tmpConn = await mysql.createConnection({
-      host: process.env.DB_HOST,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      port: process.env.DB_PORT || 3306
+      host: getRequiredEnv('DB_HOST'),
+      user: getRequiredEnv('DB_USER'),
+      password: getRequiredEnv('DB_PASSWORD'),
+      port: Number(process.env.DB_PORT || 3306)
     });
 
-    const dbName = process.env.DB_NAME || 'hackathon_grading';
+    const dbName = getRequiredEnv('DB_NAME');
     console.log(`Creating database if not exists: ${dbName}`);
     await tmpConn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\`;`);
     await tmpConn.end();

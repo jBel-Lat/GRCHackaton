@@ -1,11 +1,15 @@
 <?php
 // Tournament Game page
 // Simple PHP + MySQL implementation that lists players and shuffles them into a bracket
-// NOTE: Update DB credentials below to match your environment
-$dbHost = '127.0.0.1';
-$dbUser = 'root';
-$dbPass = '';
-$dbName = 'hackathon_grading';
+// Use environment variables instead of hardcoded credentials.
+$dbHost = getenv('DB_HOST');
+$dbUser = getenv('DB_USER');
+$dbPass = getenv('DB_PASSWORD');
+$dbName = getenv('DB_NAME');
+
+if (!$dbHost || !$dbUser || !$dbName) {
+    die('Database environment variables are not configured.');
+}
 
 // Connect to MySQL
 $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName);

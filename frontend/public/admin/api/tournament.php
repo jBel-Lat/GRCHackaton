@@ -5,10 +5,16 @@
 
 header('Content-Type: application/json; charset=utf-8');
 
-$dbHost = '127.0.0.1';
-$dbUser = 'root';
-$dbPass = '';
-$dbName = 'hackathon_grading';
+$dbHost = getenv('DB_HOST');
+$dbUser = getenv('DB_USER');
+$dbPass = getenv('DB_PASSWORD');
+$dbName = getenv('DB_NAME');
+
+if (!$dbHost || !$dbUser || !$dbName) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Database environment variables are not configured']);
+    exit;
+}
 
 $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
 if ($mysqli->connect_errno) {

@@ -1,6 +1,8 @@
 // Panelist API Client
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = (window.location.hostname === 'localhost' && window.location.port === '8000')
+    ? 'http://localhost:5000/api'
+    : '/api';
 
 class PanelistApi {
     constructor() {
