@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
+const pool = require('./config/database');
 
 const authRoutes = require('./routes/authRoutes');
 const eventRoutes = require('./routes/eventRoutes');
@@ -58,8 +59,21 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Admin login: http://localhost:${PORT}${ADMIN_BASE}`);
-    console.log(`Panelist login: http://localhost:${PORT}/panelist`);
-});
+async function startServer() {
+    try {
+        const connection = await pool.getConnection();
+        connection.release();
+        console.log('Database connected successfully');
+
+        app.listen(PORT, () => {
+            console.log(`Server running on http://localhost:${PORT}`);
+            console.log(`Admin login: http://localhost:${PORT}${ADMIN_BASE}`);
+            console.log(`Panelist login: http://localhost:${PORT}/panelist`);
+        });
+    } catch (err) {
+        console.error('Database connection failed:', err.message);
+        process.exit(1);
+    }
+}
+
+startServer();
