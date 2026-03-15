@@ -38,7 +38,9 @@ app.get(ADMIN_BASE, (req, res) => {
 app.get(`${ADMIN_BASE}/dashboard.html`, (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/public/admin/dashboard.html'));
 });
-app.get(`${ADMIN_BASE}/`, (req, res) => res.redirect(ADMIN_BASE));
+app.get(`${ADMIN_BASE}/`, (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/public/admin/index.html'));
+});
 
 // 404 handler
 app.use((req, res) => {

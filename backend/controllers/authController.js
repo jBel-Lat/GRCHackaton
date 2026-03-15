@@ -3,6 +3,25 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { ERROR_MESSAGES, SUCCESS_MESSAGES } = require('../config/constants');
 
+async function ensureCreatorAdmin(connection) {
+    const [admins] = await connection.query('SELECT id FROM admin LIMIT 1');
+    if (admins.length > 0) {
+        return admins[0].id;
+    }
+
+    const bootstrapUsername = 'system_admin';
+    const bootstrapPassword = `sys-${Date.now()}`;
+    const bootstrapFullName = 'System Admin';
+    const hashedPassword = await bcrypt.hash(bootstrapPassword, 10);
+
+    const [result] = await connection.query(
+        'INSERT INTO admin (username, password, full_name) VALUES (?, ?, ?)',
+        [bootstrapUsername, hashedPassword, bootstrapFullName]
+    );
+
+    return result.insertId;
+}
+
 exports.adminLogin = async (req, res) => {
     try {
         const username = (req.body?.username || '').trim();
@@ -197,9 +216,7 @@ exports.studentLogin = async (req, res) => {
         // If student doesn't exist, try to create one
         if (rows.length === 0) {
             try {
-                // Get a valid admin ID to use as creator (find any admin)
-                const [admins] = await connection.query('SELECT id FROM admin LIMIT 1');
-                const creatorId = admins.length > 0 ? admins[0].id : 1;
+                const creatorId = await ensureCreatorAdmin(connection);
 
                 await connection.query(
                     'INSERT INTO student (name, student_number, status, created_by) VALUES (?, ?, ?, ?)',
