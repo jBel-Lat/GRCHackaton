@@ -630,6 +630,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showModal('addEventModal');
             // Reset criteria requirement indicator
             updateCriteriaRequirement();
+            // Show one criteria block by default so name/details/percentage are visible immediately.
+            addCriteriaField();
         });
     }
 
@@ -835,6 +837,7 @@ function addCriteriaField() {
     field.innerHTML = `
         <label>Criteria ${fieldCount}</label>
         <input type="text" class="criteria-name" name="criteria_name[]" aria-label="Criteria name" placeholder="Criteria name" required>
+        <label style="margin-top:6px;">Details (optional)</label>
         <textarea class="criteria-details" name="criteria_details[]" aria-label="Criteria details" placeholder="Criteria details (optional)" rows="2"></textarea>
         <input type="number" class="criteria-percentage" name="criteria_percentage[]" aria-label="Criteria percentage" placeholder="Percentage" min="0" max="100" required>
         <button type="button" class="btn btn-secondary" onclick="this.parentElement.remove()">Remove</button>
