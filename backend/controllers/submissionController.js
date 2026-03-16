@@ -2,20 +2,59 @@ const pool = require('../config/database');
 
 function toCsvUrl(inputUrl) {
     if (!inputUrl) return '';
-    const url = String(inputUrl).trim();
-    if (!url) return '';
+    const rawUrl = String(inputUrl).trim();
+    if (!rawUrl) return '';
 
-    if (url.includes('/export?') && url.includes('format=csv')) {
-        return url;
+    if (rawUrl.includes('/export?') && rawUrl.includes('format=csv')) {
+        return rawUrl;
     }
 
-    const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-    if (!idMatch) return url;
-    const sheetId = idMatch[1];
+    const { sheetId, gid } = getSheetIdAndGid(rawUrl);
+    if (!sheetId) return rawUrl;
 
-    const gidMatch = url.match(/[?&]gid=(\d+)/);
-    const gid = gidMatch ? gidMatch[1] : '0';
     return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+}
+
+function getSheetIdAndGid(inputUrl) {
+    const url = String(inputUrl || '').trim();
+    const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    if (!idMatch) return { sheetId: null, gid: '0' };
+    const gidMatch = url.match(/[?&]gid=(\d+)/) || url.match(/#gid=(\d+)/) || url.match(/gid=(\d+)/);
+    return { sheetId: idMatch[1], gid: gidMatch ? gidMatch[1] : '0' };
+}
+
+function buildCandidateCsvUrls(inputUrl) {
+    const raw = String(inputUrl || '').trim();
+    if (!raw) return [];
+
+    const urls = [];
+    const addUnique = (u) => {
+        if (!u || typeof u !== 'string') return;
+        if (!urls.includes(u)) urls.push(u);
+    };
+
+    const { sheetId, gid } = getSheetIdAndGid(raw);
+    addUnique(toCsvUrl(raw));
+
+    if (sheetId) {
+        addUnique(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`);
+        addUnique(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`);
+        addUnique(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`);
+        addUnique(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
+        addUnique(`https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv&gid=${gid}`);
+        addUnique(`https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv`);
+    }
+
+    // Handle published links and force csv output when possible.
+    if (/docs\.google\.com\/spreadsheets/i.test(raw)) {
+        const csvByOutput = raw.replace(/output=[^&#]*/i, 'output=csv');
+        addUnique(csvByOutput);
+        if (!/output=csv/i.test(raw)) {
+            addUnique(`${raw}${raw.includes('?') ? '&' : '?'}output=csv`);
+        }
+    }
+
+    return urls;
 }
 
 function parseCsvLine(line) {
@@ -44,6 +83,7 @@ function parseCsvLine(line) {
 
 function parseCsv(text) {
     const lines = String(text || '')
+        .replace(/^\uFEFF/, '')
         .split(/\r?\n/)
         .filter((line) => line.trim() !== '');
     if (!lines.length) return [];
@@ -111,33 +151,87 @@ async function ensureSubmissionsTable(connection) {
     }
 }
 
+async function tryFetchCsv(url) {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'text/csv,text/plain,*/*',
+                'User-Agent': 'HackathonJudgingImporter/1.0'
+            },
+            redirect: 'follow',
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        const text = await response.text();
+        const contentType = response.headers.get('content-type') || '';
+        const lowerBody = String(text || '').trim().toLowerCase();
+        const isHtml = lowerBody.startsWith('<!doctype html') || lowerBody.startsWith('<html');
+        const isCsvContentType = /text\/csv|application\/vnd\.ms-excel|text\/plain/i.test(contentType);
+        const hasMultipleLines = text.split(/\r?\n/).filter(Boolean).length >= 2;
+        const looksCsv = !isHtml && (isCsvContentType || (text.includes(',') && hasMultipleLines));
+        return {
+            ok: response.ok && looksCsv,
+            status: response.status,
+            contentType,
+            body: text
+        };
+    } catch (error) {
+        return { ok: false, status: 0, contentType: '', body: '', error: error.message };
+    }
+}
+
+function getCell(row, keys) {
+    for (const key of keys) {
+        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+            return String(row[key]).trim();
+        }
+    }
+    return '';
+}
+
 exports.importFromGoogleSheet = async (req, res) => {
+    let connection;
     try {
         const { sheet_url } = req.body || {};
-        const csvUrl = toCsvUrl(sheet_url);
-        if (!csvUrl) {
+        const candidateUrls = buildCandidateCsvUrls(sheet_url);
+        if (!candidateUrls.length) {
             return res.status(400).json({ success: false, message: 'sheet_url is required.' });
         }
 
-        const response = await fetch(csvUrl, { method: 'GET' });
-        if (!response.ok) {
-            return res.status(400).json({ success: false, message: 'Unable to fetch Google Sheet CSV. Check sharing settings and URL.' });
+        let csvText = '';
+        const failures = [];
+        for (const u of candidateUrls) {
+            const r = await tryFetchCsv(u);
+            if (r.ok) {
+                csvText = r.body;
+                break;
+            }
+            failures.push(`${u} -> status:${r.status}${r.error ? ` error:${r.error}` : ''}`);
         }
-        const csvText = await response.text();
+        if (!csvText) {
+            return res.status(400).json({
+                success: false,
+                message: `Unable to fetch Google Sheet CSV. Use a public URL in this format: https://docs.google.com/spreadsheets/d/SHEET_ID/export?format=csv . Attempts: ${failures.join(' | ')}`
+            });
+        }
         const rows = parseCsv(csvText);
 
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         await ensureSubmissionsTable(connection);
 
         let imported = 0;
         let skipped = 0;
         for (const row of rows) {
-            const teamName = row['Team Name'] || '';
-            const teamLeader = row['Team Leader Name'] || '';
-            const teamMembers = row['Team Members Name'] || '';
-            const problemName = row['Problem Name'] || '';
-            const rawPdf = row['Upload Project Documentation (PDF)'] || '';
-            const rawVideo = row['Upload Project Demo Video'] || '';
+            const teamName = getCell(row, ['Team Name', 'team name']);
+            const teamLeader = getCell(row, ['Team Leader Name', 'Team Leader', 'team leader name']);
+            const teamMembers = getCell(row, ['Team Members Name', 'Team Member Name', 'team members name']);
+            const problemName = getCell(row, ['Problem Name', 'problem name']);
+            const rawPdf = getCell(row, ['Upload Project Documentation (PDF)', 'Upload Project Documentation', 'Project Documentation (PDF)']);
+            const rawVideo = getCell(row, ['Upload Project Demo Video', 'Project Demo Video']);
 
             const pdfUrl = normalizeDriveLink(rawPdf, 'pdf');
             const videoUrl = normalizeDriveLink(rawVideo, 'video');
@@ -164,7 +258,6 @@ exports.importFromGoogleSheet = async (req, res) => {
             imported += 1;
         }
 
-        connection.release();
         return res.json({
             success: true,
             data: { imported, skipped, totalRows: rows.length }
@@ -172,19 +265,23 @@ exports.importFromGoogleSheet = async (req, res) => {
     } catch (error) {
         console.error('importFromGoogleSheet error:', error);
         return res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        if (connection) connection.release();
     }
 };
 
 exports.getSubmissions = async (req, res) => {
+    let connection;
     try {
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         await ensureSubmissionsTable(connection);
 
         const [rows] = await connection.query(`SELECT * FROM submissions ORDER BY updated_at DESC`);
-        connection.release();
         return res.json({ success: true, data: rows });
     } catch (error) {
         console.error('getSubmissions error:', error);
         return res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        if (connection) connection.release();
     }
 };
