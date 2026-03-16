@@ -1675,7 +1675,13 @@ async function importSubmissionsFromGoogleSheet() {
 
     const imported = result.data?.imported ?? 0;
     const skipped = result.data?.skipped ?? 0;
-    alert(`Import complete. Imported: ${imported}, Skipped: ${skipped}.`);
+    const skipDetails = Array.isArray(result.data?.skipDetails) ? result.data.skipDetails : [];
+    let message = `Import complete. Imported: ${imported}, Skipped: ${skipped}.`;
+    if (skipDetails.length) {
+        const lines = skipDetails.map((d) => `Row ${d.row}: ${d.reason}`);
+        message += `\n\nSkipped rows:\n${lines.join('\n')}`;
+    }
+    alert(message);
     await loadSubmissionsTable(currentEventId || null);
 }
 

@@ -57,40 +57,59 @@ function buildCandidateCsvUrls(inputUrl) {
     return urls;
 }
 
-function parseCsvLine(line) {
-    const out = [];
-    let cur = '';
+function parseCsv(text) {
+    const source = String(text || '').replace(/^\uFEFF/, '');
+    if (!source.trim()) return [];
+
+    const records = [];
+    let currentField = '';
+    let currentRecord = [];
     let inQuotes = false;
-    for (let i = 0; i < line.length; i += 1) {
-        const ch = line[i];
+
+    for (let i = 0; i < source.length; i += 1) {
+        const ch = source[i];
+        const next = source[i + 1];
+
         if (ch === '"') {
-            if (inQuotes && line[i + 1] === '"') {
-                cur += '"';
+            if (inQuotes && next === '"') {
+                currentField += '"';
                 i += 1;
             } else {
                 inQuotes = !inQuotes;
             }
-        } else if (ch === ',' && !inQuotes) {
-            out.push(cur);
-            cur = '';
-        } else {
-            cur += ch;
+            continue;
         }
+
+        if (ch === ',' && !inQuotes) {
+            currentRecord.push(currentField.trim());
+            currentField = '';
+            continue;
+        }
+
+        if ((ch === '\n' || ch === '\r') && !inQuotes) {
+            if (ch === '\r' && next === '\n') i += 1;
+            currentRecord.push(currentField.trim());
+            currentField = '';
+
+            const hasValue = currentRecord.some((v) => String(v || '').trim() !== '');
+            if (hasValue) records.push(currentRecord);
+            currentRecord = [];
+            continue;
+        }
+
+        currentField += ch;
     }
-    out.push(cur);
-    return out.map((v) => v.trim());
-}
 
-function parseCsv(text) {
-    const lines = String(text || '')
-        .replace(/^\uFEFF/, '')
-        .split(/\r?\n/)
-        .filter((line) => line.trim() !== '');
-    if (!lines.length) return [];
+    if (currentField.length > 0 || currentRecord.length > 0) {
+        currentRecord.push(currentField.trim());
+        const hasValue = currentRecord.some((v) => String(v || '').trim() !== '');
+        if (hasValue) records.push(currentRecord);
+    }
 
-    const headers = parseCsvLine(lines[0]).map((h) => h.trim());
-    return lines.slice(1).map((line) => {
-        const cols = parseCsvLine(line);
+    if (!records.length) return [];
+
+    const headers = (records[0] || []).map((h) => String(h || '').trim());
+    return records.slice(1).map((cols) => {
         const row = {};
         headers.forEach((h, idx) => {
             row[h] = cols[idx] || '';
@@ -248,7 +267,9 @@ exports.importFromGoogleSheet = async (req, res) => {
 
         let imported = 0;
         let skipped = 0;
-        for (const row of rows) {
+        const skipDetails = [];
+        for (let i = 0; i < rows.length; i += 1) {
+            const row = rows[i];
             const teamName = getCellByHeaderTokens(row, [
                 ['team', 'name'],
                 ['group', 'name']
@@ -284,6 +305,15 @@ exports.importFromGoogleSheet = async (req, res) => {
 
             if (!teamName || (!pdfUrl && !videoUrl)) {
                 skipped += 1;
+                if (skipDetails.length < 10) {
+                    const reasons = [];
+                    if (!teamName) reasons.push('missing Team Name');
+                    if (!pdfUrl && !videoUrl) reasons.push('missing PDF/Video link');
+                    skipDetails.push({
+                        row: i + 2,
+                        reason: reasons.join(', ') || 'invalid row'
+                    });
+                }
                 continue;
             }
             const safeTeamLeader = teamLeader || 'N/A';
@@ -307,7 +337,7 @@ exports.importFromGoogleSheet = async (req, res) => {
 
         return res.json({
             success: true,
-            data: { imported, skipped, totalRows: rows.length }
+            data: { imported, skipped, totalRows: rows.length, skipDetails }
         });
     } catch (error) {
         console.error('importFromGoogleSheet error:', error);
