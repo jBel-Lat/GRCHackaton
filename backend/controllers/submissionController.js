@@ -165,6 +165,7 @@ async function ensureSubmissionsTable(connection) {
             id INT PRIMARY KEY AUTO_INCREMENT,
             team_name VARCHAR(255) NOT NULL,
             team_leader VARCHAR(255) NOT NULL,
+            team_leader_name VARCHAR(255) NULL,
             team_members TEXT NULL,
             problem_name VARCHAR(255) NULL,
             pdf_link TEXT NULL,
@@ -178,6 +179,7 @@ async function ensureSubmissionsTable(connection) {
     const alterStatements = [
         'ALTER TABLE submissions ADD COLUMN team_name VARCHAR(255) NULL',
         'ALTER TABLE submissions ADD COLUMN team_leader VARCHAR(255) NULL',
+        'ALTER TABLE submissions ADD COLUMN team_leader_name VARCHAR(255) NULL',
         'ALTER TABLE submissions ADD COLUMN team_members TEXT NULL',
         'ALTER TABLE submissions ADD COLUMN problem_name VARCHAR(255) NULL',
         'ALTER TABLE submissions ADD COLUMN pdf_link TEXT NULL',
@@ -350,6 +352,7 @@ exports.importFromGoogleSheet = async (req, res) => {
                 UPDATE submissions
                 SET
                     team_leader = ?,
+                    team_leader_name = ?,
                     team_members = ?,
                     problem_name = ?,
                     pdf_link = ?,
@@ -358,17 +361,17 @@ exports.importFromGoogleSheet = async (req, res) => {
                 WHERE team_name = ?
                   AND ((problem_name IS NULL AND ? IS NULL) OR problem_name = ?)
                 `,
-                [safeTeamLeader, teamMembers || null, normalizedProblem, pdfUrl, videoUrl, teamName, normalizedProblem, normalizedProblem]
+                [safeTeamLeader, safeTeamLeader, teamMembers || null, normalizedProblem, pdfUrl, videoUrl, teamName, normalizedProblem, normalizedProblem]
             );
 
             if (!updateResult || !updateResult.affectedRows) {
                 await connection.query(
                     `
                     INSERT INTO submissions
-                        (team_name, team_leader, team_members, problem_name, pdf_link, video_link)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                        (team_name, team_leader, team_leader_name, team_members, problem_name, pdf_link, video_link)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     `,
-                    [teamName, safeTeamLeader, teamMembers || null, normalizedProblem, pdfUrl, videoUrl]
+                    [teamName, safeTeamLeader, safeTeamLeader, teamMembers || null, normalizedProblem, pdfUrl, videoUrl]
                 );
             }
             imported += 1;
