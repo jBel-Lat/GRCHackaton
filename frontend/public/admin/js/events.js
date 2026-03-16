@@ -216,28 +216,32 @@ async function loadEventParticipants(eventId) {
 }
 
 async function loadTopBestCategory(eventId) {
-    const box = document.getElementById('topBestCategoryList');
-    if (!box) return;
+    const technicalBox = document.getElementById('topBestCategoryTechnicalList');
+    const ethicalBox = document.getElementById('topBestCategoryEthicalList');
+    if (!technicalBox || !ethicalBox) return;
 
-    box.textContent = 'Loading top 3...';
+    technicalBox.textContent = 'Loading top 3...';
+    ethicalBox.textContent = 'Loading top 3...';
     const result = await adminApi.getTopBestCategory(eventId);
     if (!result.success) {
-        box.textContent = result.message || 'Unable to load Top 3.';
+        const msg = result.message || 'Unable to load Top 3.';
+        technicalBox.textContent = msg;
+        ethicalBox.textContent = msg;
         return;
     }
 
-    const rows = Array.isArray(result.data) ? result.data : [];
-    if (!rows.length) {
-        box.textContent = 'No votes yet.';
-        return;
-    }
+    const technical = Array.isArray(result.data?.bestTechnicalImplementation) ? result.data.bestTechnicalImplementation : [];
+    const ethical = Array.isArray(result.data?.bestEthicalResponsibleAIDesign) ? result.data.bestEthicalResponsibleAIDesign : [];
 
-    box.innerHTML = rows.map((row, idx) => `
+    const renderRows = (rows) => rows.map((row, idx) => `
         <div style="display:flex; justify-content:space-between; gap:8px; padding:4px 0;">
             <span><strong>#${idx + 1}</strong> ${row.participant_label}${row.problem_name ? ` (${row.problem_name})` : ''}</span>
             <span style="font-weight:700; color:#9B0F06;">${row.votes} vote${Number(row.votes) === 1 ? '' : 's'}</span>
         </div>
     `).join('');
+
+    technicalBox.innerHTML = technical.length ? renderRows(technical) : 'No votes yet.';
+    ethicalBox.innerHTML = ethical.length ? renderRows(ethical) : 'No votes yet.';
 }
 
 async function loadEventCriteria(criteria) {

@@ -97,7 +97,7 @@ class PanelistApi {
         }
     }
 
-    async setBestCategory(eventId, participantId, isBest) {
+    async setBestCategory(eventId, participantId, isBest, category) {
         try {
             const response = await fetch(`${API_BASE_URL}/participants/panelist/best-category`, {
                 method: 'POST',
@@ -105,7 +105,8 @@ class PanelistApi {
                 body: JSON.stringify({
                     event_id: Number(eventId),
                     participant_id: Number(participantId),
-                    is_best: Boolean(isBest)
+                    is_best: Boolean(isBest),
+                    category
                 })
             });
             return await response.json();

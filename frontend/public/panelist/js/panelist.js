@@ -235,10 +235,16 @@ async function selectEvent(eventId, eventName) {
         } else {
             participantsList.innerHTML = result.data.map(participant => `
                 <div class="participant-card" style="position:relative;" onclick='selectParticipant(${eventId}, ${participant.id}, ${JSON.stringify(participant.participant_name)}, ${JSON.stringify(participant.team_name || "")})'>
-                    <label style="position:absolute; top:10px; right:10px; display:flex; gap:6px; align-items:center; font-size:0.85rem; font-weight:600; color:#9B0F06; background:#fff8f6; border:1px solid #f0d3cf; border-radius:999px; padding:4px 8px;" onclick="event.stopPropagation();">
-                        <input type="checkbox" ${participant.is_best_category ? 'checked' : ''} onchange="toggleBestCategoryCheckbox(${eventId}, ${participant.id}, this, event)">
-                        Best in Category
-                    </label>
+                    <div style="position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:6px;" onclick="event.stopPropagation();">
+                        <label style="display:flex; gap:6px; align-items:center; font-size:0.8rem; font-weight:600; color:#9B0F06; background:#fff8f6; border:1px solid #f0d3cf; border-radius:999px; padding:4px 8px;">
+                            <input type="checkbox" ${participant.is_best_technical_implementation ? 'checked' : ''} onchange="toggleBestCategoryCheckbox(${eventId}, ${participant.id}, 'best_technical_implementation', this, event)">
+                            Best Technical Implementation
+                        </label>
+                        <label style="display:flex; gap:6px; align-items:center; font-size:0.8rem; font-weight:600; color:#9B0F06; background:#fff8f6; border:1px solid #f0d3cf; border-radius:999px; padding:4px 8px;">
+                            <input type="checkbox" ${participant.is_best_ethical_responsible_ai_design ? 'checked' : ''} onchange="toggleBestCategoryCheckbox(${eventId}, ${participant.id}, 'best_ethical_responsible_ai_design', this, event)">
+                            Best Ethical & Responsible AI Design
+                        </label>
+                    </div>
                     <h3>${participant.participant_name}</h3>
                     <div class="event-card-info">
                         <div><strong>Team:</strong> ${participant.team_name || 'N/A'}</div>
@@ -258,10 +264,10 @@ async function selectEvent(eventId, eventName) {
     switchSection('participants');
 }
 
-async function toggleBestCategoryCheckbox(eventId, participantId, checkboxEl, domEvent) {
+async function toggleBestCategoryCheckbox(eventId, participantId, category, checkboxEl, domEvent) {
     if (domEvent) domEvent.stopPropagation();
     const intended = Boolean(checkboxEl.checked);
-    const result = await panelistApi.setBestCategory(eventId, participantId, intended);
+    const result = await panelistApi.setBestCategory(eventId, participantId, intended, category);
     if (!result.success) {
         checkboxEl.checked = !intended;
         alert(result.message || 'Failed to update Best in Category.');

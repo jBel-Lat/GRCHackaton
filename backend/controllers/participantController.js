@@ -77,13 +77,43 @@ async function ensureBestCategoryTable(connection) {
             panelist_id INT NOT NULL,
             event_id INT NOT NULL,
             participant_id INT NOT NULL,
+            category VARCHAR(80) NOT NULL DEFAULT 'best_technical_implementation',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (panelist_id) REFERENCES panelist(id) ON DELETE CASCADE,
             FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE,
             FOREIGN KEY (participant_id) REFERENCES participant(id) ON DELETE CASCADE,
-            UNIQUE KEY unique_panelist_best_pick (panelist_id, event_id, participant_id)
+            UNIQUE KEY unique_panelist_best_pick_category (panelist_id, event_id, participant_id, category)
         )
     `);
+
+    // Backward compatibility for existing tables created before category support.
+    try {
+        await connection.query(`ALTER TABLE panelist_best_category ADD COLUMN category VARCHAR(80) NOT NULL DEFAULT 'best_technical_implementation'`);
+    } catch (err) {
+        if (!(err && (err.code === 'ER_DUP_FIELDNAME' || (err.message && err.message.toLowerCase().includes('duplicate column'))))) {
+            throw err;
+        }
+    }
+
+    try {
+        const [idxRows] = await connection.query(`SHOW INDEX FROM panelist_best_category WHERE Key_name = 'unique_panelist_best_pick'`);
+        if (idxRows.length) {
+            await connection.query(`ALTER TABLE panelist_best_category DROP INDEX unique_panelist_best_pick`);
+        }
+    } catch (err) {
+        // ignore index drop issues for compatibility
+    }
+
+    try {
+        await connection.query(`
+            ALTER TABLE panelist_best_category
+            ADD UNIQUE KEY unique_panelist_best_pick_category (panelist_id, event_id, participant_id, category)
+        `);
+    } catch (err) {
+        if (!(err && (err.code === 'ER_DUP_KEYNAME' || (err.message && err.message.toLowerCase().includes('duplicate key name'))))) {
+            throw err;
+        }
+    }
 }
 
 // Delete all participants for an event (admin)
@@ -546,7 +576,8 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
                        t.team_label AS participant_name,
                        p.pdf_file_path,
                        p.ppt_file_path,
-                       CASE WHEN bc.id IS NULL THEN 0 ELSE 1 END AS is_best_category
+                       CASE WHEN bcTech.id IS NULL THEN 0 ELSE 1 END AS is_best_technical_implementation,
+                       CASE WHEN bcEthical.id IS NULL THEN 0 ELSE 1 END AS is_best_ethical_responsible_ai_design
                 FROM (
                     SELECT MIN(id) AS min_id,
                            team_label
@@ -559,13 +590,19 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
                     GROUP BY team_label
                 ) t
                 LEFT JOIN participant p ON p.id = t.min_id
-                LEFT JOIN panelist_best_category bc
-                    ON bc.participant_id = t.min_id
-                   AND bc.panelist_id = ?
-                   AND bc.event_id = ?
+                LEFT JOIN panelist_best_category bcTech
+                    ON bcTech.participant_id = t.min_id
+                   AND bcTech.panelist_id = ?
+                   AND bcTech.event_id = ?
+                   AND bcTech.category = 'best_technical_implementation'
+                LEFT JOIN panelist_best_category bcEthical
+                    ON bcEthical.participant_id = t.min_id
+                   AND bcEthical.panelist_id = ?
+                   AND bcEthical.event_id = ?
+                   AND bcEthical.category = 'best_ethical_responsible_ai_design'
                 ORDER BY t.team_label
                 `,
-                [event_id, panelistId, event_id]
+                [event_id, panelistId, event_id, panelistId, event_id]
             );
             participants = withFiles;
         } catch (err) {
@@ -577,7 +614,8 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
                 SELECT t.min_id AS id,
                        t.team_label AS team_name,
                        t.team_label AS participant_name,
-                       CASE WHEN bc.id IS NULL THEN 0 ELSE 1 END AS is_best_category
+                       CASE WHEN bcTech.id IS NULL THEN 0 ELSE 1 END AS is_best_technical_implementation,
+                       CASE WHEN bcEthical.id IS NULL THEN 0 ELSE 1 END AS is_best_ethical_responsible_ai_design
                 FROM (
                     SELECT MIN(id) AS min_id,
                            team_label
@@ -589,13 +627,19 @@ exports.getEventParticipantsForPanelist = async (req, res) => {
                     ) grouped
                     GROUP BY team_label
                 ) t
-                LEFT JOIN panelist_best_category bc
-                    ON bc.participant_id = t.min_id
-                   AND bc.panelist_id = ?
-                   AND bc.event_id = ?
+                LEFT JOIN panelist_best_category bcTech
+                    ON bcTech.participant_id = t.min_id
+                   AND bcTech.panelist_id = ?
+                   AND bcTech.event_id = ?
+                   AND bcTech.category = 'best_technical_implementation'
+                LEFT JOIN panelist_best_category bcEthical
+                    ON bcEthical.participant_id = t.min_id
+                   AND bcEthical.panelist_id = ?
+                   AND bcEthical.event_id = ?
+                   AND bcEthical.category = 'best_ethical_responsible_ai_design'
                 ORDER BY t.team_label
                 `,
-                [event_id, panelistId, event_id]
+                [event_id, panelistId, event_id, panelistId, event_id]
             );
             participants = withoutFiles.map(p => ({ ...p, pdf_file_path: null, ppt_file_path: null }));
         }
@@ -613,9 +657,17 @@ exports.toggleBestCategorySelection = async (req, res) => {
         const eventId = Number(req.body.event_id);
         const participantId = Number(req.body.participant_id);
         const isBest = Boolean(req.body.is_best);
+        const category = String(req.body.category || '').trim();
+        const allowedCategories = new Set([
+            'best_technical_implementation',
+            'best_ethical_responsible_ai_design'
+        ]);
 
         if (!Number.isFinite(panelistId) || !Number.isFinite(eventId) || !Number.isFinite(participantId)) {
             return res.status(400).json({ success: false, message: ERROR_MESSAGES.MISSING_REQUIRED_FIELDS });
+        }
+        if (!allowedCategories.has(category)) {
+            return res.status(400).json({ success: false, message: 'Invalid best category type.' });
         }
 
         const connection = await pool.getConnection();
@@ -641,15 +693,15 @@ exports.toggleBestCategorySelection = async (req, res) => {
 
         if (isBest) {
             await connection.query(
-                `INSERT INTO panelist_best_category (panelist_id, event_id, participant_id)
-                 VALUES (?, ?, ?)
+                `INSERT INTO panelist_best_category (panelist_id, event_id, participant_id, category)
+                 VALUES (?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE created_at = CURRENT_TIMESTAMP`,
-                [panelistId, eventId, participantId]
+                [panelistId, eventId, participantId, category]
             );
         } else {
             await connection.query(
-                'DELETE FROM panelist_best_category WHERE panelist_id = ? AND event_id = ? AND participant_id = ?',
-                [panelistId, eventId, participantId]
+                'DELETE FROM panelist_best_category WHERE panelist_id = ? AND event_id = ? AND participant_id = ? AND category = ?',
+                [panelistId, eventId, participantId, category]
             );
         }
 
@@ -676,18 +728,30 @@ exports.getTopBestCategoryParticipants = async (req, res) => {
                    COALESCE(NULLIF(p.team_name, ''), p.participant_name) AS participant_label,
                    p.team_name,
                    p.problem_name,
+                   bc.category,
                    COUNT(bc.id) AS votes
             FROM panelist_best_category bc
             JOIN participant p ON p.id = bc.participant_id
             WHERE bc.event_id = ?
-            GROUP BY p.id, p.team_name, p.participant_name, p.problem_name
-            ORDER BY votes DESC, participant_label ASC
-            LIMIT 3
+            GROUP BY p.id, p.team_name, p.participant_name, p.problem_name, bc.category
+            ORDER BY bc.category ASC, votes DESC, participant_label ASC
             `,
             [eventId]
         );
         connection.release();
-        res.json({ success: true, data: rows });
+        const technical = rows
+            .filter(r => r.category === 'best_technical_implementation')
+            .slice(0, 3);
+        const ethical = rows
+            .filter(r => r.category === 'best_ethical_responsible_ai_design')
+            .slice(0, 3);
+        res.json({
+            success: true,
+            data: {
+                bestTechnicalImplementation: technical,
+                bestEthicalResponsibleAIDesign: ethical
+            }
+        });
     } catch (error) {
         console.error('getTopBestCategoryParticipants error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
