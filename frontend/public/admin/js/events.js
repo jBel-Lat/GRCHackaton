@@ -202,7 +202,10 @@ async function loadEventCriteria(criteria) {
                     </div>
                     <div class="criteria-percentage">${crit.percentage}% | Max Score: ${crit.max_score}</div>
                 </div>
-                <button class="btn btn-danger" onclick="deleteCriteria(${crit.id})">Delete</button>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <button class="btn btn-secondary" onclick='openUpdateCriteriaPrompt(${crit.id}, ${JSON.stringify(crit.criteria_name)}, ${JSON.stringify(crit.criteria_details || "")}, ${Number(crit.percentage) || 0})'>Update</button>
+                    <button class="btn btn-danger" onclick="deleteCriteria(${crit.id})">Delete</button>
+                </div>
             </div>
         `).join('');
     }
@@ -673,6 +676,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addCriteriaFieldBtn) {
         addCriteriaFieldBtn.addEventListener('click', addCriteriaField);
     }
+    const criteriaPercentageInput = document.getElementById('criteriaPercentage');
+    if (criteriaPercentageInput) {
+        criteriaPercentageInput.addEventListener('input', updateSingleCriteriaIndicator);
+    }
 
     const createTopParticipantsEventBtn = document.getElementById('createTopParticipantsEventBtn');
     if (createTopParticipantsEventBtn) {
@@ -785,6 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addCriteriaBtn) {
         addCriteriaBtn.addEventListener('click', () => {
             document.getElementById('addCriteriaForm').reset();
+            updateSingleCriteriaIndicator();
             showModal('addCriteriaModal');
         });
     }
@@ -847,9 +855,65 @@ function addCriteriaField() {
         <label style="margin-top:6px;">Details (optional)</label>
         <textarea class="criteria-details" name="criteria_details[]" aria-label="Criteria details" placeholder="Criteria details (optional)" rows="2"></textarea>
         <input type="number" class="criteria-percentage" name="criteria_percentage[]" aria-label="Criteria percentage" placeholder="Percentage" min="0" max="100" required>
-        <button type="button" class="btn btn-secondary" onclick="this.parentElement.remove()">Remove</button>
+        <button type="button" class="btn btn-secondary" onclick="removeCriteriaField(this)">Remove</button>
     `;
     container.appendChild(field);
+
+    const percentageInput = field.querySelector('.criteria-percentage');
+    if (percentageInput) {
+        percentageInput.addEventListener('input', updateCriteriaTotalIndicator);
+        percentageInput.addEventListener('blur', updateCriteriaTotalIndicator);
+    }
+
+    updateCriteriaTotalIndicator();
+}
+
+function removeCriteriaField(buttonEl) {
+    if (!buttonEl || !buttonEl.parentElement) return;
+    buttonEl.parentElement.remove();
+    updateCriteriaTotalIndicator();
+}
+
+function getCriteriaTotalFromFields() {
+    let total = 0;
+    document.querySelectorAll('#criteriaFieldsContainer .criteria-percentage').forEach((input) => {
+        total += parseFloat(input.value) || 0;
+    });
+    return total;
+}
+
+function updateCriteriaTotalIndicator() {
+    const indicator = document.getElementById('criteriaTotalIndicator');
+    if (!indicator) return;
+
+    const total = getCriteriaTotalFromFields();
+    indicator.textContent = total > 100
+        ? `Total: ${total}% (exceeds 100%)`
+        : `Total: ${total}%`;
+    indicator.style.color = total > 100 ? '#d32f2f' : '#2e7d32';
+}
+
+function getCurrentCriteriaTotalFromList() {
+    let total = 0;
+    document.querySelectorAll('#criteriaList .criteria-percentage').forEach((el) => {
+        const match = (el.textContent || '').match(/([0-9]+(?:\.[0-9]+)?)%/);
+        if (match) total += parseFloat(match[1]) || 0;
+    });
+    return total;
+}
+
+function updateSingleCriteriaIndicator() {
+    const indicator = document.getElementById('singleCriteriaTotalIndicator');
+    const pctInput = document.getElementById('criteriaPercentage');
+    if (!indicator || !pctInput) return;
+
+    const nextValue = parseFloat(pctInput.value) || 0;
+    const currentTotal = getCurrentCriteriaTotalFromList();
+    const projected = currentTotal + nextValue;
+    indicator.textContent = projected > 100
+        ? `Projected total: ${projected}% (exceeds 100%)`
+        : `Projected total: ${projected}%`;
+    indicator.style.color = projected > 100 ? '#d32f2f' : '#2e7d32';
 }
 
 async function handleAddEvent(e) {
@@ -870,6 +934,12 @@ async function handleAddEvent(e) {
             criteria.push({ criteria_name: name, criteria_details: details, percentage, max_score: percentage });
         }
     });
+
+    const totalPercentage = criteria.reduce((sum, c) => sum + (parseFloat(c.percentage) || 0), 0);
+    if (!isTournament && totalPercentage > 100) {
+        alert(`Total criteria percentage is ${totalPercentage}%. Please keep it at 100% or below.`);
+        return;
+    }
 
     // Criteria are only required if NOT a tournament event
     if (!isTournament && criteria.length === 0) {
@@ -1212,6 +1282,18 @@ async function handleAddCriteria(e) {
     const criteriaDetails = document.getElementById('criteriaDetails').value;
     const percentage = parseFloat(document.getElementById('criteriaPercentage').value);
 
+    const eventDetails = await adminApi.getEventDetails(eventId);
+    if (!eventDetails.success) {
+        alert(eventDetails.message || 'Unable to validate criteria percentage.');
+        return;
+    }
+    const currentTotal = (eventDetails.data.criteria || []).reduce((sum, c) => sum + (parseFloat(c.percentage) || 0), 0);
+    const projected = currentTotal + (parseFloat(percentage) || 0);
+    if (projected > 100) {
+        alert(`Cannot add criteria. Total would become ${projected}% (max is 100%).`);
+        return;
+    }
+
     const result = await adminApi.addCriteria({
         event_id: eventId,
         criteria_name: criteriaName,
@@ -1276,6 +1358,57 @@ async function deleteParticipantConfirm(participantId) {
         } else {
             alert(result.message || 'Error deleting participant');
         }
+    }
+}
+
+async function openUpdateCriteriaPrompt(criteriaId, currentName, currentDetails, currentPercentage) {
+    const nextName = prompt('Update criteria name:', currentName || '');
+    if (nextName === null) return;
+    if (!nextName.trim()) {
+        alert('Criteria name is required.');
+        return;
+    }
+
+    const nextDetails = prompt('Update criteria details/description:', currentDetails || '');
+    if (nextDetails === null) return;
+
+    const percentageRaw = prompt('Update criteria percentage (0-100):', String(currentPercentage ?? '0'));
+    if (percentageRaw === null) return;
+
+    const nextPercentage = parseFloat(percentageRaw);
+    if (!Number.isFinite(nextPercentage) || nextPercentage < 0 || nextPercentage > 100) {
+        alert('Please enter a valid percentage between 0 and 100.');
+        return;
+    }
+
+    const eventDetails = await adminApi.getEventDetails(currentEventId);
+    if (!eventDetails.success) {
+        alert(eventDetails.message || 'Unable to validate criteria update.');
+        return;
+    }
+    const otherTotal = (eventDetails.data.criteria || [])
+        .filter(c => Number(c.id) !== Number(criteriaId))
+        .reduce((sum, c) => sum + (parseFloat(c.percentage) || 0), 0);
+    const projected = otherTotal + nextPercentage;
+    if (projected > 100) {
+        alert(`Cannot update criteria. Total would become ${projected}% (max is 100%).`);
+        return;
+    }
+
+    const result = await adminApi.updateCriteria(criteriaId, {
+        criteria_name: nextName.trim(),
+        criteria_details: nextDetails.trim(),
+        percentage: nextPercentage
+    });
+
+    if (!result.success) {
+        alert(result.message || 'Error updating criteria');
+        return;
+    }
+
+    const refreshed = await adminApi.getEventDetails(currentEventId);
+    if (refreshed.success) {
+        loadEventCriteria(refreshed.data.criteria);
     }
 }
 

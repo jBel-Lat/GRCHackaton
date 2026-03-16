@@ -15,6 +15,7 @@ router.delete('/:id', eventController.deleteEvent);
 
 // Criteria management
 router.post('/criteria/add', eventController.addCriteria);
+router.put('/criteria/:id', eventController.updateCriteria);
 router.delete('/criteria/:id', eventController.deleteCriteria);
 
 module.exports = router;

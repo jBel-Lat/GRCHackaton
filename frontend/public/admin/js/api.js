@@ -141,6 +141,20 @@ class AdminApi {
         }
     }
 
+    async updateCriteria(criteriaId, criteriaData) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/events/criteria/${criteriaId}`, {
+                method: 'PUT',
+                headers: this.getHeaders(),
+                body: JSON.stringify(criteriaData)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Update criteria error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
     // Participants
     async getEventParticipants(eventId) {
         try {

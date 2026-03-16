@@ -58,6 +58,38 @@ async function insertCriteriaCompat(connection, eventId, criteriaName, details, 
     }
 }
 
+async function updateCriteriaCompat(connection, criteriaId, criteriaName, details, percentage) {
+    const updates = [
+        {
+            sql: 'UPDATE criteria SET criteria_name = ?, criteria_details = ?, percentage = ?, max_score = ? WHERE id = ?',
+            params: [criteriaName, details || null, percentage, percentage, criteriaId]
+        },
+        {
+            sql: 'UPDATE criteria SET criteria_name = ?, details = ?, percentage = ?, max_score = ? WHERE id = ?',
+            params: [criteriaName, details || null, percentage, percentage, criteriaId]
+        },
+        {
+            sql: 'UPDATE criteria SET criteria_name = ?, description = ?, percentage = ?, max_score = ? WHERE id = ?',
+            params: [criteriaName, details || null, percentage, percentage, criteriaId]
+        },
+        {
+            sql: 'UPDATE criteria SET criteria_name = ?, percentage = ?, max_score = ? WHERE id = ?',
+            params: [criteriaName, percentage, percentage, criteriaId]
+        }
+    ];
+
+    for (const query of updates) {
+        try {
+            await connection.query(query.sql, query.params);
+            return;
+        } catch (err) {
+            if (!(err.message && err.message.includes('Unknown column'))) {
+                throw err;
+            }
+        }
+    }
+}
+
 // Get all events
 exports.getAllEvents = async (req, res) => {
     try {
@@ -149,6 +181,16 @@ exports.createEvent = async (req, res) => {
                 success: false,
                 message: 'Please add at least one criteria (or mark as Tournament Event to skip)'
             });
+        }
+
+        if (Array.isArray(criteria) && criteria.length > 0) {
+            const totalPercentage = criteria.reduce((sum, crit) => sum + (parseFloat(crit.percentage) || 0), 0);
+            if (totalPercentage > 100) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Total criteria percentage cannot exceed 100%.'
+                });
+            }
         }
 
         const connection = await pool.getConnection();
@@ -277,6 +319,20 @@ exports.addCriteria = async (req, res) => {
         }
 
         const connection = await pool.getConnection();
+
+        const [sumRows] = await connection.query(
+            'SELECT COALESCE(SUM(percentage), 0) AS total FROM criteria WHERE event_id = ?',
+            [event_id]
+        );
+        const currentTotal = parseFloat(sumRows[0]?.total) || 0;
+        const nextTotal = currentTotal + (parseFloat(percentage) || 0);
+        if (nextTotal > 100) {
+            connection.release();
+            return res.status(400).json({
+                success: false,
+                message: `Total criteria percentage cannot exceed 100% (current: ${currentTotal}%).`
+            });
+        }
         
         await insertCriteriaCompat(
             connection,
@@ -294,6 +350,78 @@ exports.addCriteria = async (req, res) => {
         });
     } catch (error) {
         console.error('Add criteria error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+};
+
+// Update criteria
+exports.updateCriteria = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { criteria_name, percentage, criteria_details } = req.body;
+
+        if (!id || !criteria_name || percentage === undefined || percentage === null) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.MISSING_REQUIRED_FIELDS
+            });
+        }
+
+        const parsedPercentage = parseFloat(percentage);
+        if (!Number.isFinite(parsedPercentage) || parsedPercentage < 0 || parsedPercentage > 100) {
+            return res.status(400).json({
+                success: false,
+                message: 'Percentage must be between 0 and 100.'
+            });
+        }
+
+        const connection = await pool.getConnection();
+        const [criteriaRows] = await connection.query(
+            'SELECT id, event_id FROM criteria WHERE id = ? LIMIT 1',
+            [id]
+        );
+
+        if (!criteriaRows.length) {
+            connection.release();
+            return res.status(404).json({
+                success: false,
+                message: 'Criteria not found'
+            });
+        }
+
+        const eventId = criteriaRows[0].event_id;
+        const [sumRows] = await connection.query(
+            'SELECT COALESCE(SUM(percentage), 0) AS total FROM criteria WHERE event_id = ? AND id <> ?',
+            [eventId, id]
+        );
+        const otherTotal = parseFloat(sumRows[0]?.total) || 0;
+        const nextTotal = otherTotal + parsedPercentage;
+        if (nextTotal > 100) {
+            connection.release();
+            return res.status(400).json({
+                success: false,
+                message: `Total criteria percentage cannot exceed 100% (others already: ${otherTotal}%).`
+            });
+        }
+
+        await updateCriteriaCompat(
+            connection,
+            id,
+            criteria_name,
+            (criteria_details || '').trim(),
+            parsedPercentage
+        );
+
+        connection.release();
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.UPDATED_SUCCESS
+        });
+    } catch (error) {
+        console.error('Update criteria error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error'
