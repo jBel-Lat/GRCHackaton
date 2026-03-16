@@ -196,8 +196,10 @@ async function loadEventCriteria(criteria) {
         criteriaList.innerHTML = criteria.map(crit => `
             <div class="criteria-item">
                 <div class="criteria-info">
-                    <div class="criteria-name">${crit.criteria_name}</div>
-                    ${crit.criteria_details ? `<div class="text-muted" style="margin: 4px 0 6px;">${crit.criteria_details}</div>` : ''}
+                    <div class="criteria-name" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span>${crit.criteria_name}</span>
+                        ${crit.criteria_details ? `<span class="text-muted" style="font-weight:400;">- ${crit.criteria_details}</span>` : ''}
+                    </div>
                     <div class="criteria-percentage">${crit.percentage}% | Max Score: ${crit.max_score}</div>
                 </div>
                 <button class="btn btn-danger" onclick="deleteCriteria(${crit.id})">Delete</button>
@@ -672,6 +674,11 @@ document.addEventListener('DOMContentLoaded', () => {
         addCriteriaFieldBtn.addEventListener('click', addCriteriaField);
     }
 
+    const createTopParticipantsEventBtn = document.getElementById('createTopParticipantsEventBtn');
+    if (createTopParticipantsEventBtn) {
+        createTopParticipantsEventBtn.addEventListener('click', createTopParticipantsEvent);
+    }
+
     const addEventForm = document.getElementById('addEventForm');
     if (addEventForm) {
         addEventForm.addEventListener('submit', handleAddEvent);
@@ -1035,6 +1042,136 @@ function updateRemoveButtonVisibility() {
     removeButtons.forEach(btn => {
         btn.style.display = groups.length > 1 ? 'inline-block' : 'none';
     });
+}
+
+function buildTopTeamsFromParticipants(participants) {
+    const teams = new Map();
+
+    participants.forEach((row) => {
+        const teamName = (row.team_name || row.participant_name || '').trim();
+        if (!teamName) return;
+
+        const memberName = (row.participant_name || '').trim();
+        const rowScore = Number.isFinite(parseFloat(row.total_score)) ? parseFloat(row.total_score) : 0;
+
+        if (!teams.has(teamName)) {
+            teams.set(teamName, {
+                teamName,
+                members: [],
+                // Use max member score as team score to avoid score inflation from per-member rows.
+                score: rowScore
+            });
+        }
+
+        const team = teams.get(teamName);
+        if (memberName && !team.members.includes(memberName)) {
+            team.members.push(memberName);
+        }
+        if (rowScore > team.score) {
+            team.score = rowScore;
+        }
+    });
+
+    return Array.from(teams.values()).sort((a, b) => b.score - a.score);
+}
+
+async function createTopParticipantsEvent() {
+    const eventId = currentEventId || sessionStorage.getItem('currentEventId');
+    if (!eventId) {
+        alert('Please select an event first.');
+        return;
+    }
+
+    const createBtn = document.getElementById('createTopParticipantsEventBtn');
+    const topCountInput = document.getElementById('topParticipantsCount');
+    const eventNameInput = document.getElementById('topParticipantsEventName');
+    const topCount = parseInt(topCountInput?.value || '10', 10);
+
+    if (!Number.isFinite(topCount) || topCount <= 0) {
+        alert('Please select a valid top count.');
+        return;
+    }
+
+    if (createBtn) createBtn.disabled = true;
+
+    try {
+        const [eventDetailsResult, participantsResult] = await Promise.all([
+            adminApi.getEventDetails(eventId),
+            adminApi.getEventParticipants(eventId)
+        ]);
+
+        if (!eventDetailsResult.success) {
+            alert(eventDetailsResult.message || 'Unable to load event details.');
+            return;
+        }
+        if (!participantsResult.success) {
+            alert(participantsResult.message || 'Unable to load participants.');
+            return;
+        }
+
+        const rankedTeams = buildTopTeamsFromParticipants(participantsResult.data || []);
+        const selectedTeams = rankedTeams.slice(0, topCount);
+
+        if (selectedTeams.length === 0) {
+            alert('No ranked teams found for this event yet.');
+            return;
+        }
+
+        const sourceEvent = eventDetailsResult.data?.event || {};
+        const sourceCriteria = Array.isArray(eventDetailsResult.data?.criteria) ? eventDetailsResult.data.criteria : [];
+        const providedName = (eventNameInput?.value || '').trim();
+        const newEventName = providedName || `${sourceEvent.event_name || 'Event'} - Top ${selectedTeams.length}`;
+
+        const createResult = await adminApi.createEvent({
+            event_name: newEventName,
+            description: `Top ${selectedTeams.length} teams from ${sourceEvent.event_name || 'source event'}`,
+            start_date: null,
+            end_date: null,
+            is_tournament: false,
+            criteria: sourceCriteria.length > 0
+                ? sourceCriteria.map(c => ({
+                    criteria_name: c.criteria_name,
+                    criteria_details: c.criteria_details || '',
+                    percentage: c.percentage,
+                    max_score: c.max_score
+                }))
+                : [{ criteria_name: 'Overall', criteria_details: 'Top teams selection', percentage: 100, max_score: 100 }]
+        });
+
+        if (!createResult.success) {
+            alert(createResult.message || 'Failed to create top event.');
+            return;
+        }
+
+        const newEventId = createResult.data?.event_id;
+        if (!newEventId) {
+            alert('Event was created but new event ID was not returned.');
+            return;
+        }
+
+        let insertedTeams = 0;
+        for (const team of selectedTeams) {
+            const members = team.members.length > 0 ? team.members : [team.teamName];
+            const addResult = await adminApi.addParticipant({
+                event_id: newEventId,
+                team_name: team.teamName,
+                members
+            });
+            if (addResult.success) {
+                insertedTeams += 1;
+            }
+        }
+
+        alert(`Created "${newEventName}" with top ${insertedTeams}/${selectedTeams.length} teams.`);
+        if (eventNameInput) eventNameInput.value = '';
+        await loadEvents();
+        await selectEvent(newEventId);
+    } catch (error) {
+        console.error('createTopParticipantsEvent error:', error);
+        alert('Error creating top event.');
+    } finally {
+        if (createBtn) createBtn.disabled = false;
+    }
 }
 
 // Prefill add-member modal for an existing team (team name locked)

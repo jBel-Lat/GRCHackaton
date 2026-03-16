@@ -88,6 +88,17 @@
                         <input type="file" id="importParticipantsInput" accept=".xlsx" style="display:none;">
                         <button id="importParticipantsBtn" class="btn btn-secondary">Import Participants (Excel)</button>
                     </div>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <label for="topParticipantsCount" style="font-weight: 600;">Top</label>
+                        <select id="topParticipantsCount" class="search-box" style="min-width: 84px; padding: 0.45rem 0.8rem;">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="15">15</option>
+                            <option value="20">20</option>
+                        </select>
+                        <input type="text" id="topParticipantsEventName" name="topParticipantsEventName" class="search-box" placeholder="New event name (optional)" style="min-width: 220px;">
+                        <button id="createTopParticipantsEventBtn" class="btn btn-primary">Create Top Event</button>
+                    </div>
                 </div>
 
                 <div class="event-details-container">

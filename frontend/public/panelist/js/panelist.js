@@ -270,8 +270,10 @@ async function selectParticipant(eventId, participantId, participantName, teamNa
             return `
             <div class="grading-item" data-criteria-id="${criteria.id}">
                 <div class="grading-item-header">
-                    <div class="grading-item-title">${escapeHtml(criteria.criteria_name)}</div>
-                    ${detailsHtml ? `<div class="text-muted" style="font-size:0.9rem; margin: 2px 0 4px; white-space: normal;">${detailsHtml}</div>` : ''}
+                    <div class="grading-item-title" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span>${escapeHtml(criteria.criteria_name)}</span>
+                        ${detailsHtml ? `<span class="text-muted" style="font-weight:400; font-size:0.9rem; white-space: normal;">- ${detailsHtml}</span>` : ''}
+                    </div>
                     <div class="grading-percentage">${criteria.percentage}% Weight | Max Score: ${criteria.max_score}</div>
                 </div>
                 <div class="grading-input-group">
