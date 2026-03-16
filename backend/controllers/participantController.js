@@ -40,6 +40,25 @@ async function getCriteriaWithDetailsCompat(connection, eventId) {
     return [];
 }
 
+async function ensureParticipantFileColumns(connection) {
+    const alterQueries = [
+        'ALTER TABLE participant ADD COLUMN pdf_file_path VARCHAR(500) NULL',
+        'ALTER TABLE participant ADD COLUMN ppt_file_path VARCHAR(500) NULL'
+    ];
+
+    for (const sql of alterQueries) {
+        try {
+            await connection.query(sql);
+        } catch (err) {
+            // Ignore if column already exists.
+            if (err && (err.code === 'ER_DUP_FIELDNAME' || (err.message && err.message.toLowerCase().includes('duplicate column')))) {
+                continue;
+            }
+            throw err;
+        }
+    }
+}
+
 // Delete all participants for an event (admin)
 exports.deleteAllParticipantsForEvent = async (req, res) => {
     try {
@@ -767,6 +786,9 @@ exports.uploadParticipantFiles = async (req, res) => {
             return res.status(404).json({ success: false, message: ERROR_MESSAGES.PARTICIPANT_NOT_FOUND });
         }
 
+        // Auto-heal schema on environments where migration was not applied yet.
+        await ensureParticipantFileColumns(connection);
+
         const updates = [];
         const params = [];
         if (pdfFile) {
@@ -779,18 +801,7 @@ exports.uploadParticipantFiles = async (req, res) => {
         }
         params.push(participant_id);
 
-        try {
-            await connection.query(`UPDATE participant SET ${updates.join(', ')} WHERE id = ?`, params);
-        } catch (err) {
-            connection.release();
-            if (err.message && err.message.includes('Unknown column')) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Database is missing participant file columns. Run database/add_participant_files.sql first.'
-                });
-            }
-            throw err;
-        }
+        await connection.query(`UPDATE participant SET ${updates.join(', ')} WHERE id = ?`, params);
         const [updated] = await connection.query(
             'SELECT id, pdf_file_path, ppt_file_path FROM participant WHERE id = ? LIMIT 1',
             [participant_id]
