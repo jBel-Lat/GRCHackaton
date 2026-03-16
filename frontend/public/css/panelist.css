@@ -514,3 +514,117 @@
     }
 }
 
+/* Final responsive layout layer */
+@media (max-width: 1024px) {
+    .sidebar {
+        width: 220px;
+    }
+
+    .main-content {
+        margin-left: 220px;
+        padding: 1rem;
+    }
+
+    .event-card-info {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        display: block;
+    }
+
+    .sidebar {
+        position: sticky;
+        top: 0;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 0.85rem;
+        z-index: 1200;
+    }
+
+    .sidebar-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .nav-item {
+        flex: 1 1 100%;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+        width: 100%;
+        max-width: 100%;
+        padding: 1rem;
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.7rem;
+        padding: 1rem;
+    }
+
+    .event-card,
+    .participant-card,
+    .grading-form-container {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .event-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.45rem;
+    }
+
+    .grading-form-container {
+        max-height: none;
+    }
+
+    .grading-item {
+        padding: 0.75rem;
+    }
+
+    .grading-input-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.4rem;
+    }
+
+    .grading-input-group input {
+        width: 100%;
+        max-width: 100%;
+        flex: 1 1 auto;
+    }
+
+    .submit-btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .sidebar {
+        padding: 0.75rem;
+    }
+
+    .main-content {
+        padding: 0.75rem;
+    }
+
+    .section-header h1,
+    .section-header h2 {
+        font-size: 1.25rem;
+    }
+
+    .event-card,
+    .participant-card {
+        padding: 1rem;
+    }
+}
+

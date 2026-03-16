@@ -21,7 +21,6 @@
 html,
 body {
     max-width: 100%;
-    overflow-x: hidden;
 }
 
 body {
@@ -299,6 +298,19 @@ body {
     padding: 1.25rem;
 }
 .mb-2 { margin-bottom: 1rem; }
+
+img,
+svg,
+canvas,
+video,
+iframe {
+    max-width: 100%;
+    height: auto;
+}
+
+.modal-actions {
+    flex-wrap: wrap;
+}
 
 @media (max-width: 768px) {
     .form-group input,

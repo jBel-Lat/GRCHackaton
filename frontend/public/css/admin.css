@@ -778,3 +778,177 @@
     }
 }
 
+/* Final responsive layout layer */
+@media (max-width: 1024px) {
+    .sidebar {
+        width: 220px;
+    }
+
+    .main-content {
+        margin-left: 220px;
+        padding: 1.2rem;
+    }
+
+    .event-details-container {
+        grid-template-columns: 1fr;
+    }
+
+    .header-actions {
+        flex-wrap: wrap;
+        gap: 0.6rem;
+    }
+
+    .search-box {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        display: block;
+    }
+
+    .sidebar {
+        position: sticky;
+        top: 0;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 0.85rem;
+        z-index: 1200;
+    }
+
+    .sidebar-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .nav-item {
+        flex: 1 1 calc(50% - 0.5rem);
+        justify-content: center;
+        text-align: center;
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+        width: 100%;
+        max-width: 100%;
+        padding: 1rem;
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.7rem;
+        padding: 1rem;
+    }
+
+    .header-actions {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 0.6rem;
+    }
+
+    .header-actions > * {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .search-box,
+    .header-actions input,
+    .header-actions select,
+    .header-actions button {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .event-card,
+    .participant-card,
+    .panelist-card,
+    .details-section,
+    .section {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .event-card-header,
+    .criteria-item,
+    .score-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.45rem;
+    }
+
+    .event-card-info {
+        grid-template-columns: 1fr;
+    }
+
+    .event-card-actions {
+        flex-wrap: wrap;
+    }
+
+    .event-card-actions button {
+        flex: 1 1 100%;
+    }
+
+    .member-input-group {
+        flex-wrap: wrap;
+    }
+
+    .member-input-group .btn-small {
+        width: 100%;
+    }
+
+    #eventStudentWeightInput,
+    #eventPanelistWeightInput,
+    #participantsLimitInput {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .modal-content {
+        width: min(96vw, 640px);
+        max-height: 88vh;
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .sidebar {
+        padding: 0.75rem;
+    }
+
+    .nav-item {
+        flex: 1 1 100%;
+        font-size: 0.9rem;
+        padding: 0.6rem;
+    }
+
+    .main-content {
+        padding: 0.75rem;
+    }
+
+    .section-header h1,
+    .section-header h2 {
+        font-size: 1.25rem;
+    }
+
+    .event-card,
+    .participant-card,
+    .panelist-card,
+    .details-section {
+        padding: 1rem;
+    }
+
+    .btn,
+    .modal-actions .btn {
+        width: 100%;
+    }
+
+    .modal-actions {
+        flex-direction: column;
+    }
+}
+
