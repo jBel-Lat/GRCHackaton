@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS criteria (
     id INT PRIMARY KEY AUTO_INCREMENT,
     event_id INT NOT NULL,
     criteria_name VARCHAR(255) NOT NULL,
+    criteria_details TEXT,
     percentage DECIMAL(5, 2) NOT NULL,
     max_score INT NOT NULL DEFAULT 100,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

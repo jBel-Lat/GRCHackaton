@@ -197,6 +197,7 @@ async function loadEventCriteria(criteria) {
             <div class="criteria-item">
                 <div class="criteria-info">
                     <div class="criteria-name">${crit.criteria_name}</div>
+                    ${crit.criteria_details ? `<div class="text-muted" style="margin: 4px 0 6px;">${crit.criteria_details}</div>` : ''}
                     <div class="criteria-percentage">${crit.percentage}% | Max Score: ${crit.max_score}</div>
                 </div>
                 <button class="btn btn-danger" onclick="deleteCriteria(${crit.id})">Delete</button>
@@ -834,6 +835,7 @@ function addCriteriaField() {
     field.innerHTML = `
         <label>Criteria ${fieldCount}</label>
         <input type="text" class="criteria-name" name="criteria_name[]" aria-label="Criteria name" placeholder="Criteria name" required>
+        <textarea class="criteria-details" name="criteria_details[]" aria-label="Criteria details" placeholder="Criteria details (optional)" rows="2"></textarea>
         <input type="number" class="criteria-percentage" name="criteria_percentage[]" aria-label="Criteria percentage" placeholder="Percentage" min="0" max="100" required>
         <button type="button" class="btn btn-secondary" onclick="this.parentElement.remove()">Remove</button>
     `;
@@ -852,9 +854,10 @@ async function handleAddEvent(e) {
     const criteria = [];
     document.querySelectorAll('#criteriaFieldsContainer .form-group').forEach(field => {
         const name = field.querySelector('.criteria-name').value;
+        const details = field.querySelector('.criteria-details')?.value || '';
         const percentage = parseFloat(field.querySelector('.criteria-percentage').value);
         if (name && percentage) {
-            criteria.push({ criteria_name: name, percentage, max_score: percentage });
+            criteria.push({ criteria_name: name, criteria_details: details, percentage, max_score: percentage });
         }
     });
 
@@ -1066,11 +1069,13 @@ async function handleAddCriteria(e) {
 
     const eventId = currentEventId;
     const criteriaName = document.getElementById('criteriaName').value;
+    const criteriaDetails = document.getElementById('criteriaDetails').value;
     const percentage = parseFloat(document.getElementById('criteriaPercentage').value);
 
     const result = await adminApi.addCriteria({
         event_id: eventId,
         criteria_name: criteriaName,
+        criteria_details: criteriaDetails,
         percentage
     });
 

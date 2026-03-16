@@ -53,10 +53,24 @@ exports.getEventDetails = async (req, res) => {
         }
 
         // Get criteria for event
-        const [criteria] = await connection.query(
-            'SELECT id, criteria_name, percentage, max_score FROM criteria WHERE event_id = ?',
-            [id]
-        );
+        let criteria = [];
+        try {
+            const [rows] = await connection.query(
+                'SELECT id, criteria_name, criteria_details, percentage, max_score FROM criteria WHERE event_id = ?',
+                [id]
+            );
+            criteria = rows;
+        } catch (err) {
+            if (err.message && err.message.includes('Unknown column')) {
+                const [rows] = await connection.query(
+                    'SELECT id, criteria_name, percentage, max_score FROM criteria WHERE event_id = ?',
+                    [id]
+                );
+                criteria = rows.map(c => ({ ...c, criteria_details: null }));
+            } else {
+                throw err;
+            }
+        }
 
         connection.release();
 
@@ -124,10 +138,22 @@ exports.createEvent = async (req, res) => {
         // Insert criteria if provided
         if (criteria && criteria.length > 0) {
             for (const crit of criteria) {
-                await connection.query(
-                    'INSERT INTO criteria (event_id, criteria_name, percentage, max_score) VALUES (?, ?, ?, ?)',
-                    [eventId, crit.criteria_name, crit.percentage, crit.percentage] // max_score defaults to percentage
-                );
+                const details = (crit.criteria_details || crit.details || '').trim();
+                try {
+                    await connection.query(
+                        'INSERT INTO criteria (event_id, criteria_name, criteria_details, percentage, max_score) VALUES (?, ?, ?, ?, ?)',
+                        [eventId, crit.criteria_name, details || null, crit.percentage, crit.percentage] // max_score defaults to percentage
+                    );
+                } catch (err) {
+                    if (err.message && err.message.includes('Unknown column')) {
+                        await connection.query(
+                            'INSERT INTO criteria (event_id, criteria_name, percentage, max_score) VALUES (?, ?, ?, ?)',
+                            [eventId, crit.criteria_name, crit.percentage, crit.percentage]
+                        );
+                    } else {
+                        throw err;
+                    }
+                }
             }
         }
 
@@ -215,7 +241,7 @@ exports.deleteEvent = async (req, res) => {
 // Add criteria to event
 exports.addCriteria = async (req, res) => {
     try {
-        const { event_id, criteria_name, percentage } = req.body;
+        const { event_id, criteria_name, percentage, criteria_details } = req.body;
 
         if (!event_id || !criteria_name || !percentage) {
             return res.status(400).json({
@@ -226,10 +252,21 @@ exports.addCriteria = async (req, res) => {
 
         const connection = await pool.getConnection();
         
-        await connection.query(
-            'INSERT INTO criteria (event_id, criteria_name, percentage, max_score) VALUES (?, ?, ?, ?)',
-            [event_id, criteria_name, percentage, percentage] // max_score defaults to percentage
-        );
+        try {
+            await connection.query(
+                'INSERT INTO criteria (event_id, criteria_name, criteria_details, percentage, max_score) VALUES (?, ?, ?, ?, ?)',
+                [event_id, criteria_name, (criteria_details || '').trim() || null, percentage, percentage] // max_score defaults to percentage
+            );
+        } catch (err) {
+            if (err.message && err.message.includes('Unknown column')) {
+                await connection.query(
+                    'INSERT INTO criteria (event_id, criteria_name, percentage, max_score) VALUES (?, ?, ?, ?)',
+                    [event_id, criteria_name, percentage, percentage]
+                );
+            } else {
+                throw err;
+            }
+        }
 
         connection.release();
 

@@ -253,6 +253,7 @@ async function selectParticipant(eventId, participantId, participantName, teamNa
             <div class="grading-item" data-criteria-id="${criteria.id}">
                 <div class="grading-item-header">
                     <div class="grading-item-title">${criteria.criteria_name}</div>
+                    ${criteria.criteria_details ? `<div class="text-muted" style="font-size:0.9rem; margin: 2px 0 4px;">${criteria.criteria_details}</div>` : ''}
                     <div class="grading-percentage">${criteria.percentage}% Weight | Max Score: ${criteria.max_score}</div>
                 </div>
                 <div class="grading-input-group">
@@ -272,6 +273,11 @@ async function selectParticipant(eventId, participantId, participantName, teamNa
         const hasExistingGrades = result.data.some(criteria => criteria.existing_score !== null && criteria.existing_score !== undefined);
         if (hasExistingGrades) {
             gradingForm.querySelectorAll('.grade-input').forEach(input => input.setAttribute('disabled', 'disabled'));
+        } else {
+            gradingForm.querySelectorAll('.grade-input').forEach(input => {
+                input.addEventListener('input', () => enforceMaxScoreInput(input));
+                input.addEventListener('blur', () => enforceMaxScoreInput(input));
+            });
         }
 
         const submitBtn = document.createElement('button');
@@ -325,6 +331,26 @@ async function submitGrades(criteriaList) {
         );
     } else {
         alert('Please enter at least one grade');
+    }
+}
+
+function enforceMaxScoreInput(input) {
+    const max = Number(input.max);
+    if (input.value === '') return;
+
+    const value = Number(input.value);
+    if (!Number.isFinite(value)) {
+        input.value = '';
+        return;
+    }
+
+    if (value < 0) {
+        input.value = '0';
+        return;
+    }
+
+    if (Number.isFinite(max) && value > max) {
+        input.value = String(max);
     }
 }
 
