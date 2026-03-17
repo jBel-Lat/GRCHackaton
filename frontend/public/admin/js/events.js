@@ -117,6 +117,7 @@ async function selectEvent(eventId) {
         
         // Load criteria
         loadEventCriteria(result.data.criteria);
+        switchEventDetailsTab('eventBreakdownTab');
         
         switchSection('eventDetails');
     }
@@ -668,6 +669,34 @@ function displayTeamMembers() {
     `;
 }
 
+function switchEventDetailsTab(tabId) {
+    const panels = document.querySelectorAll('.event-details-tab-panel');
+    panels.forEach((panel) => {
+        panel.style.display = panel.id === tabId ? 'block' : 'none';
+    });
+
+    const buttons = document.querySelectorAll('.event-details-tab');
+    buttons.forEach((btn) => {
+        const target = btn.getAttribute('data-tab-target');
+        btn.classList.toggle('active', target === tabId);
+    });
+}
+
+function setupEventDetailsTabs() {
+    const tabButtons = document.querySelectorAll('.event-details-tab');
+    if (!tabButtons.length) return;
+
+    tabButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const target = btn.getAttribute('data-tab-target');
+            if (!target) return;
+            switchEventDetailsTab(target);
+        });
+    });
+
+    switchEventDetailsTab('eventBreakdownTab');
+}
+
 // Add styling for active tabs
 const style = document.createElement('style');
 style.textContent = `
@@ -682,11 +711,18 @@ style.textContent = `
     .breakdown-tab:hover {
         color: #1976d2;
     }
+    .event-details-tab.active {
+        background: #9B0F06 !important;
+        color: #fff !important;
+        border-color: #9B0F06 !important;
+    }
 `;
 if (document.head) document.head.appendChild(style);
 
 // Event Modal Handlers
 document.addEventListener('DOMContentLoaded', () => {
+    setupEventDetailsTabs();
+
     const addEventBtn = document.getElementById('addEventBtn');
     if (addEventBtn) {
         addEventBtn.addEventListener('click', () => {

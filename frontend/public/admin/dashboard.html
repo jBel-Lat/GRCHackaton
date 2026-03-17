@@ -56,27 +56,6 @@
                         <button id="addEventBtn" class="btn btn-primary">+ Add Event</button>
                     </div>
                 </div>
-                <div class="section" style="margin-bottom: 12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                    <input type="text" id="googleSheetUrlInput" class="search-box" placeholder="Google Sheet URL (public)" style="min-width: 320px;">
-                    <button id="importSubmissionsBtn" class="btn btn-secondary">Import Submissions from Google Sheet</button>
-                    <button id="refreshSubmissionsBtn" class="btn btn-secondary">Refresh Submissions</button>
-                </div>
-                <div class="section" style="margin-bottom: 16px; overflow-x:auto;">
-                    <table style="width:100%; border-collapse: collapse; min-width: 720px;">
-                        <thead>
-                            <tr>
-                                <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Team Name</th>
-                                <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Team Leader Name</th>
-                                <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Problem Name</th>
-                                <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Project Documentation</th>
-                                <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Demo Video</th>
-                            </tr>
-                        </thead>
-                        <tbody id="submissionsTableBody">
-                            <tr><td colspan="5" class="text-muted" style="padding:10px;">No imported submissions yet.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
                 <div id="eventsList" class="events-list"></div>
             </section>
 
@@ -105,15 +84,49 @@
                         <button id="updateWeightsBtnEvent" class="btn btn-primary" style="width: fit-content;">Update Weights</button>
                     </div>
                     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                        <button id="downloadParticipantTemplateBtnTop" class="btn btn-secondary">Download Template</button>
-                        <input type="file" id="importParticipantsInput" accept=".xlsx" style="display:none;">
-                        <button id="importParticipantsBtn" class="btn btn-secondary">Import Participants (Excel)</button>
-                    </div>
-                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                         <label for="topParticipantsCount" style="font-weight: 600;">Top</label>
                         <input type="text" id="topParticipantsCount" name="topParticipantsCount" class="search-box" placeholder="ex: top3" value="top10" style="min-width: 110px;">
                         <input type="text" id="topParticipantsEventName" name="topParticipantsEventName" class="search-box" placeholder="New event name (optional)" style="min-width: 220px;">
                         <button id="createTopParticipantsEventBtn" class="btn btn-primary">Create Top Participants Event</button>
+                    </div>
+                </div>
+
+                <div class="section" style="margin: 12px 0;">
+                    <div id="eventDetailsTabs" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                        <button type="button" class="btn btn-secondary event-details-tab active" data-tab-target="eventBreakdownTab">Breakdown</button>
+                        <button type="button" class="btn btn-secondary event-details-tab" data-tab-target="eventImportTab">Import/Template</button>
+                    </div>
+
+                    <div id="eventBreakdownTab" class="event-details-tab-panel" style="display:block;">
+                        <div class="section" style="margin-bottom: 12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="text" id="googleSheetUrlInput" class="search-box" placeholder="Google Sheet URL (public)" style="min-width: 320px;">
+                            <button id="importSubmissionsBtn" class="btn btn-secondary">Import Submissions from Google Sheet</button>
+                            <button id="refreshSubmissionsBtn" class="btn btn-secondary">Refresh Submissions</button>
+                        </div>
+                        <div class="section" style="margin-bottom: 16px; overflow-x:auto;">
+                            <table style="width:100%; border-collapse: collapse; min-width: 720px;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Team Name</th>
+                                        <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Team Leader Name</th>
+                                        <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Problem Name</th>
+                                        <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Project Documentation</th>
+                                        <th style="text-align:left; padding:8px; border-bottom:1px solid #e6e0d8;">Demo Video</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="submissionsTableBody">
+                                    <tr><td colspan="5" class="text-muted" style="padding:10px;">No imported submissions yet.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="eventImportTab" class="event-details-tab-panel" style="display:none;">
+                        <div class="section" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <button id="downloadParticipantTemplateBtnTop" class="btn btn-secondary">Download Template</button>
+                            <input type="file" id="importParticipantsInput" accept=".xlsx" style="display:none;">
+                            <button id="importParticipantsBtn" class="btn btn-secondary">Import Participants (Excel)</button>
+                        </div>
                     </div>
                 </div>
 
