@@ -115,6 +115,19 @@ body {
     font-size: 0.9rem;
 }
 
+.round-counter-badge {
+    margin-left: auto;
+    padding: 7px 12px;
+    border: 1px solid #2e4b75;
+    background: #0c1730;
+    color: #d5e7ff;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
 .tournament-message {
     display: none;
     margin-top: 12px;
@@ -303,8 +316,14 @@ body {
     .tournament-controls label,
     .tournament-controls select,
     .tournament-controls button,
-    .refresh-note {
+    .refresh-note,
+    .round-counter-badge {
         width: 100%;
+    }
+
+    .round-counter-badge {
+        margin-left: 0;
+        text-align: center;
     }
 
     .match-actions .btn,

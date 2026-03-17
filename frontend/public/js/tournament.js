@@ -2,7 +2,8 @@ const state = {
     matches: [],
     selectedEventId: '',
     expandedMatchId: null,
-    refreshTimer: null
+    refreshTimer: null,
+    maxRoundSeen: 0
 };
 
 const API_BASE = '/api';
@@ -11,6 +12,7 @@ function initTournamentPage() {
     document.getElementById('eventFilterSelect')?.addEventListener('change', (e) => {
         state.selectedEventId = e.target.value || '';
         state.expandedMatchId = null;
+        updateRoundCounter();
         renderMatches();
     });
 
@@ -30,9 +32,33 @@ async function fetchMatches() {
         }
 
         state.matches = Array.isArray(data.data) ? data.data : [];
+
+        const currentMaxRound = state.matches.length
+            ? Math.max(...state.matches.map((m) => Number(m.round_number || 1)))
+            : 0;
+
+        // Stop currently open stream when a new round appears.
+        if (state.maxRoundSeen > 0 && currentMaxRound > state.maxRoundSeen) {
+            state.expandedMatchId = null;
+            setStatus(`Round ${currentMaxRound} has started. Stream panel was reset for the new set.`, 'success');
+        }
+        state.maxRoundSeen = currentMaxRound;
+
+        // If opened match is no longer ongoing, auto-close the stream.
+        if (state.expandedMatchId) {
+            const opened = state.matches.find((m) => Number(m.id) === Number(state.expandedMatchId));
+            const openedStatus = String(opened?.status || '').toLowerCase();
+            if (!opened || openedStatus === 'finished') {
+                state.expandedMatchId = null;
+            }
+        }
+
         syncEventFilter();
+        updateRoundCounter();
         renderMatches();
-        setStatus('Matches updated.', 'success');
+        if (!document.getElementById('tournamentStatusMessage')?.textContent) {
+            setStatus('Matches updated.', 'success');
+        }
     } catch (error) {
         console.error('Fetch matches error:', error);
         setStatus(error.message || 'Failed to fetch matches.', 'error');
@@ -116,6 +142,25 @@ function renderMatches() {
     }).join('');
 
     container.innerHTML = html;
+}
+
+function updateRoundCounter() {
+    const counter = document.getElementById('bracketRoundCounter');
+    if (!counter) return;
+
+    const filtered = state.selectedEventId
+        ? state.matches.filter((m) => String(m.event_id) === String(state.selectedEventId))
+        : state.matches;
+
+    if (!filtered.length) {
+        counter.textContent = 'Round: --';
+        return;
+    }
+
+    const maxRound = Math.max(...filtered.map((m) => Number(m.round_number || 1)));
+    const latestMatches = filtered.filter((m) => Number(m.round_number || 1) === maxRound);
+    const remaining = latestMatches.filter((m) => String(m.status || '').toLowerCase() !== 'finished').length;
+    counter.textContent = `Round ${maxRound} • ${remaining} active set${remaining === 1 ? '' : 's'}`;
 }
 
 function renderMatchCard(match) {
@@ -223,6 +268,14 @@ function setStatus(message, type = 'info') {
         el.style.color = '#bbf7d0';
         el.style.borderLeftColor = '#10b981';
     }
+
+    // Keep message short-lived so the dashboard can update frequently.
+    setTimeout(() => {
+        if (el.textContent === message) {
+            el.style.display = 'none';
+            el.textContent = '';
+        }
+    }, 3000);
 }
 
 function escapeHtml(value) {

@@ -311,7 +311,7 @@ exports.updateMatchWinner = async (req, res) => {
         await ensureMatchesTable(connection);
 
         const [rows] = await connection.query(
-            'SELECT id, teamA_participant_id, teamB_participant_id FROM matches WHERE id = ? LIMIT 1',
+            'SELECT id, event_id, teamA_participant_id, teamB_participant_id FROM matches WHERE id = ? LIMIT 1',
             [matchId]
         );
 
@@ -333,7 +333,91 @@ exports.updateMatchWinner = async (req, res) => {
         }
 
         await connection.query('UPDATE matches SET winner_team_id = ?, status = ? WHERE id = ?', [winnerTeamId, nextStatus, matchId]);
-        return res.json({ success: true, message: 'Match winner updated successfully.' });
+
+        // Auto-advance to next round once the current latest round is fully decided.
+        const eventId = Number(rows[0].event_id);
+        let autoAdvanceMessage = '';
+        if (Number.isFinite(eventId) && eventId > 0) {
+            const [roundRows] = await connection.query(
+                'SELECT MAX(round_number) AS last_round FROM matches WHERE event_id = ?',
+                [eventId]
+            );
+            const lastRound = Number(roundRows[0]?.last_round || 0);
+
+            if (lastRound > 0) {
+                const [existingNext] = await connection.query(
+                    'SELECT COUNT(*) AS cnt FROM matches WHERE event_id = ? AND round_number = ?',
+                    [eventId, lastRound + 1]
+                );
+
+                if (Number(existingNext[0]?.cnt || 0) === 0) {
+                    const [lastRoundMatches] = await connection.query(
+                        `
+                            SELECT id, status, winner_team_id, match_order
+                            FROM matches
+                            WHERE event_id = ? AND round_number = ?
+                            ORDER BY match_order ASC, id ASC
+                        `,
+                        [eventId, lastRound]
+                    );
+
+                    const allReady = lastRoundMatches.length > 0 && lastRoundMatches.every(
+                        (match) => String(match.status || '').toLowerCase() === 'finished' && Number(match.winner_team_id || 0) > 0
+                    );
+
+                    if (allReady) {
+                        const winnerIds = lastRoundMatches
+                            .map((match) => Number(match.winner_team_id))
+                            .filter((id) => Number.isFinite(id) && id > 0);
+
+                        if (winnerIds.length <= 1) {
+                            autoAdvanceMessage = ' Tournament complete.';
+                        } else {
+                            const nextRound = lastRound + 1;
+                            const participantNameMap = await getParticipantNamesByIds(connection, winnerIds);
+
+                            await connection.beginTransaction();
+                            try {
+                                for (let i = 0; i < winnerIds.length; i += 2) {
+                                    const teamAId = winnerIds[i];
+                                    const teamBId = winnerIds[i + 1] || null;
+                                    const teamAName = participantNameMap.get(teamAId) || `Team ${teamAId}`;
+                                    const teamBName = teamBId ? (participantNameMap.get(teamBId) || `Team ${teamBId}`) : 'BYE';
+
+                                    await connection.query(
+                                        `
+                                            INSERT INTO matches (
+                                                event_id, round_name, round_number, teamA, teamB,
+                                                teamA_participant_id, teamB_participant_id, status, winner_team_id, match_order
+                                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        `,
+                                        [
+                                            eventId,
+                                            `Round ${nextRound}`,
+                                            nextRound,
+                                            teamAName,
+                                            teamBName,
+                                            teamAId,
+                                            teamBId,
+                                            teamBId ? 'pending' : 'finished',
+                                            teamBId ? null : teamAId,
+                                            (i / 2) + 1
+                                        ]
+                                    );
+                                }
+                                await connection.commit();
+                                autoAdvanceMessage = ` Advanced to Round ${nextRound}.`;
+                            } catch (advanceErr) {
+                                try { await connection.rollback(); } catch (_) {}
+                                throw advanceErr;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return res.json({ success: true, message: `Match winner updated successfully.${autoAdvanceMessage}` });
     } catch (error) {
         console.error('Update match winner error:', error);
         return res.status(500).json({ success: false, message: 'Server error while updating winner.' });
