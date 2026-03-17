@@ -1135,6 +1135,13 @@
     margin-top: 8px;
 }
 
+.admin-lock-note {
+    margin-top: 8px;
+    font-size: 0.82rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
 .tourney-message {
     margin-top: 20px;
     padding: 12px;

@@ -142,6 +142,99 @@ body {
     gap: 16px;
 }
 
+.tournament-bracket-board {
+    margin-top: 16px;
+    border: 1px solid var(--arena-line);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(11, 20, 36, 0.97), rgba(8, 14, 26, 0.97));
+    padding: 16px;
+    overflow-x: auto;
+}
+
+.bracket-wrap {
+    min-width: 760px;
+    width: max-content;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 18px;
+}
+
+.bracket-col {
+    min-width: 220px;
+}
+
+.bracket-col h3 {
+    margin: 0 0 10px 0;
+    font-size: 0.86rem;
+    color: #f2ca7d;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.bracket-col.final-col {
+    align-self: center;
+}
+
+.bracket-match {
+    position: relative;
+    border: 1px solid #35517d;
+    background: linear-gradient(160deg, rgba(19, 33, 55, 0.96), rgba(15, 25, 40, 0.96));
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 20px;
+}
+
+.bracket-match.ongoing {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.22), 0 0 16px rgba(239, 68, 68, 0.16);
+}
+
+.bracket-team {
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: #f4f8ff;
+}
+
+.bracket-vs {
+    color: #f7be58;
+    font-weight: 800;
+    font-size: 0.8rem;
+    margin: 3px 0;
+}
+
+.bracket-meta {
+    margin-top: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.72rem;
+    color: var(--arena-muted);
+    text-transform: uppercase;
+}
+
+.bracket-status-pill {
+    padding: 2px 7px;
+    border-radius: 999px;
+    color: #fff;
+    font-weight: 700;
+}
+
+.bracket-status-pill.pending { background: #64748b; }
+.bracket-status-pill.ongoing { background: #dc2626; }
+.bracket-status-pill.finished { background: #15803d; }
+
+.bracket-final-title {
+    text-align: center;
+    margin-bottom: 12px;
+    color: #f7d78a;
+    font-size: 1rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
 .round-section {
     border: 1px solid var(--arena-line);
     border-radius: 14px;
@@ -329,5 +422,9 @@ body {
     .match-actions .btn,
     .video-actions .btn {
         width: 100%;
+    }
+
+    .bracket-wrap {
+        min-width: 620px;
     }
 }

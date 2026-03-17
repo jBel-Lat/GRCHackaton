@@ -352,13 +352,13 @@ function renderMatches(matches) {
         acc[key].push(match);
         return acc;
     }, {});
+    const maxRound = Math.max(...matches.map((m) => Number(m.round_number || 1)));
 
     const roundsHtml = Object.keys(grouped).map((roundName) => {
         const roundMatches = grouped[roundName]
             .slice()
             .sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
-
-        const cards = roundMatches.map((match) => renderMatchCard(match)).join('');
+        const cards = roundMatches.map((match) => renderMatchCard(match, maxRound)).join('');
         return `
             <section class="admin-round-block">
                 <div class="admin-round-header">
@@ -440,10 +440,11 @@ function updateAdvanceRoundButton(matches) {
     btn.style.display = allReady && !isFinalRoundAlreadyDone ? '' : 'none';
 }
 
-function renderMatchCard(match) {
+function renderMatchCard(match, maxRound) {
     const matchId = Number(match.id);
     const isExpanded = tournamentState.expandedMatchId === matchId;
     const status = String(match.status || 'pending').toLowerCase();
+    const isLockedRound = Number(match.round_number || 1) < Number(maxRound || 1);
     const statusColor = status === 'ongoing' ? '#b91c1c' : status === 'finished' ? '#166534' : '#475569';
     const hasLive = Boolean((match.facebook_live_url || '').trim());
     const showLiveBadge = status === 'ongoing' && hasLive;
@@ -469,10 +470,10 @@ function renderMatchCard(match) {
             <div class="admin-match-winner"><strong>Winner:</strong> ${escapeHtml(winnerLabel)}</div>
 
             <div class="admin-match-controls">
-                <input type="text" id="matchLiveUrl-${matchId}" value="${escapeAttr(match.facebook_live_url || '')}" placeholder="Paste Discord stream URL" class="search-box" style="width:100%;">
-                <button class="btn btn-secondary" onclick="saveMatchLiveUrl(${matchId})">Save Link</button>
-                <button class="btn btn-secondary" onclick="removeMatchLiveUrl(${matchId})">Remove Link</button>
-                <select id="matchStatus-${matchId}" class="search-box" style="padding:8px 10px;">
+                <input type="text" id="matchLiveUrl-${matchId}" value="${escapeAttr(match.facebook_live_url || '')}" placeholder="Paste Discord stream URL" class="search-box" style="width:100%;" ${isLockedRound ? 'disabled' : ''}>
+                <button class="btn btn-secondary" onclick="saveMatchLiveUrl(${matchId})" ${isLockedRound ? 'disabled' : ''}>Save Link</button>
+                <button class="btn btn-secondary" onclick="removeMatchLiveUrl(${matchId})" ${isLockedRound ? 'disabled' : ''}>Remove Link</button>
+                <select id="matchStatus-${matchId}" class="search-box" style="padding:8px 10px;" ${isLockedRound ? 'disabled' : ''}>
                     <option value="pending" ${status === 'pending' ? 'selected' : ''}>Pending</option>
                     <option value="ongoing" ${status === 'ongoing' ? 'selected' : ''}>Ongoing</option>
                     <option value="finished" ${status === 'finished' ? 'selected' : ''}>Finished</option>
@@ -480,23 +481,24 @@ function renderMatchCard(match) {
             </div>
 
             <div class="admin-match-actions">
-                <button class="btn btn-primary" onclick="updateMatchStatus(${matchId})">Update Status</button>
+                <button class="btn btn-primary" onclick="updateMatchStatus(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Status</button>
                 <button class="btn btn-secondary" onclick="toggleMatchVideo(${matchId})">${isExpanded ? 'Switch Video' : 'Watch Video'}</button>
             </div>
             <div class="admin-match-controls admin-match-opponents">
-                <input type="text" id="matchTeamA-${matchId}" value="${escapeAttr(match.teamA || '')}" class="search-box" placeholder="Team A name">
-                <input type="text" id="matchTeamB-${matchId}" value="${escapeAttr(match.teamB || '')}" class="search-box" placeholder="Team B name">
-                <button class="btn btn-secondary" onclick="saveMatchOpponents(${matchId})">Update Opponents</button>
-                <select id="matchWinner-${matchId}" class="search-box" style="padding:8px 10px;">
+                <input type="text" id="matchTeamA-${matchId}" value="${escapeAttr(match.teamA || '')}" class="search-box" placeholder="Team A name" ${isLockedRound ? 'disabled' : ''}>
+                <input type="text" id="matchTeamB-${matchId}" value="${escapeAttr(match.teamB || '')}" class="search-box" placeholder="Team B name" ${isLockedRound ? 'disabled' : ''}>
+                <button class="btn btn-secondary" onclick="saveMatchOpponents(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Opponents</button>
+                <select id="matchWinner-${matchId}" class="search-box" style="padding:8px 10px;" ${isLockedRound ? 'disabled' : ''}>
                     <option value="none" ${winnerSide === 'none' ? 'selected' : ''}>No Winner</option>
                     <option value="teamA" ${winnerSide === 'teamA' ? 'selected' : ''}>Winner: Team A</option>
                     <option value="teamB" ${winnerSide === 'teamB' ? 'selected' : ''}>Winner: Team B</option>
                 </select>
             </div>
             <div class="admin-match-actions">
-                <button class="btn btn-primary" onclick="saveMatchWinner(${matchId})">Update Winner</button>
-                <button class="btn btn-secondary" onclick="revertMatchWinner(${matchId})">Revert Winner</button>
+                <button class="btn btn-primary" onclick="saveMatchWinner(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Winner</button>
+                <button class="btn btn-secondary" onclick="revertMatchWinner(${matchId})" ${isLockedRound ? 'disabled' : ''}>Revert Winner</button>
             </div>
+            ${isLockedRound ? '<div class="admin-lock-note">Locked: previous round is finalized.</div>' : ''}
 
             <div class="match-video-panel ${isExpanded ? 'expanded' : ''}" style="max-height:${isExpanded ? '700px' : '0'}; opacity:${isExpanded ? '1' : '0'};">
                 ${isExpanded ? renderMatchVideoPanel(match) : ''}

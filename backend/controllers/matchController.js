@@ -28,6 +28,26 @@ async function ensureMatchesTable(connection) {
     `);
 }
 
+async function getMatchWithRoundMeta(connection, matchId) {
+    const [rows] = await connection.query(
+        'SELECT id, event_id, round_number FROM matches WHERE id = ? LIMIT 1',
+        [matchId]
+    );
+    if (!rows.length) return null;
+
+    const match = rows[0];
+    const [maxRows] = await connection.query(
+        'SELECT MAX(round_number) AS max_round FROM matches WHERE event_id = ?',
+        [match.event_id]
+    );
+    const maxRound = Number(maxRows[0]?.max_round || 0);
+    return {
+        ...match,
+        max_round: maxRound,
+        is_editable: Number(match.round_number) === maxRound
+    };
+}
+
 function normalizeStatus(value) {
     const status = String(value || '').trim().toLowerCase();
     return VALID_STATUS.has(status) ? status : null;
@@ -245,6 +265,14 @@ exports.updateMatchLiveUrl = async (req, res) => {
         connection = await pool.getConnection();
         await ensureMatchesTable(connection);
 
+        const meta = await getMatchWithRoundMeta(connection, matchId);
+        if (!meta) {
+            return res.status(404).json({ success: false, message: 'Match not found.' });
+        }
+        if (!meta.is_editable) {
+            return res.status(400).json({ success: false, message: 'This round is locked. Only latest round matches can be edited.' });
+        }
+
         const [result] = await connection.query(
             'UPDATE matches SET facebook_live_url = ? WHERE id = ?',
             [liveUrl || null, matchId]
@@ -278,6 +306,14 @@ exports.updateMatchStatus = async (req, res) => {
 
         connection = await pool.getConnection();
         await ensureMatchesTable(connection);
+
+        const meta = await getMatchWithRoundMeta(connection, matchId);
+        if (!meta) {
+            return res.status(404).json({ success: false, message: 'Match not found.' });
+        }
+        if (!meta.is_editable) {
+            return res.status(400).json({ success: false, message: 'This round is locked. Only latest round matches can be edited.' });
+        }
 
         const [result] = await connection.query(
             'UPDATE matches SET status = ? WHERE id = ?',
@@ -317,6 +353,11 @@ exports.updateMatchWinner = async (req, res) => {
 
         if (!rows.length) {
             return res.status(404).json({ success: false, message: 'Match not found.' });
+        }
+
+        const meta = await getMatchWithRoundMeta(connection, matchId);
+        if (!meta?.is_editable) {
+            return res.status(400).json({ success: false, message: 'This round is locked. Only latest round matches can be edited.' });
         }
 
         let winnerTeamId = null;
@@ -452,6 +493,14 @@ exports.updateMatchOpponents = async (req, res) => {
 
         connection = await pool.getConnection();
         await ensureMatchesTable(connection);
+
+        const meta = await getMatchWithRoundMeta(connection, matchId);
+        if (!meta) {
+            return res.status(404).json({ success: false, message: 'Match not found.' });
+        }
+        if (!meta.is_editable) {
+            return res.status(400).json({ success: false, message: 'This round is locked. Only latest round matches can be edited.' });
+        }
 
         const [result] = await connection.query(
             `

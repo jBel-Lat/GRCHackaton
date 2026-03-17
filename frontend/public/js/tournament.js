@@ -56,9 +56,6 @@ async function fetchMatches() {
         syncEventFilter();
         updateRoundCounter();
         renderMatches();
-        if (!document.getElementById('tournamentStatusMessage')?.textContent) {
-            setStatus('Matches updated.', 'success');
-        }
     } catch (error) {
         console.error('Fetch matches error:', error);
         setStatus(error.message || 'Failed to fetch matches.', 'error');
@@ -100,14 +97,18 @@ function syncEventFilter() {
 
 function renderMatches() {
     const container = document.getElementById('tournamentMatchesContainer');
+    const bracketBoard = document.getElementById('tournamentBracketBoard');
     if (!container) return;
 
     const filtered = state.selectedEventId
         ? state.matches.filter((m) => String(m.event_id) === String(state.selectedEventId))
         : state.matches;
 
+    renderBracketBoard(filtered);
+
     if (!filtered.length) {
         container.innerHTML = '<div class="round-section"><p>No matches available for the selected event.</p></div>';
+        if (bracketBoard) bracketBoard.innerHTML = '<p class="round-title">No bracket data yet.</p>';
         return;
     }
 
@@ -136,6 +137,68 @@ function renderMatches() {
     }).join('');
 
     container.innerHTML = html;
+}
+
+function renderBracketBoard(matches) {
+    const board = document.getElementById('tournamentBracketBoard');
+    if (!board) return;
+
+    if (!matches.length) {
+        board.innerHTML = '';
+        return;
+    }
+
+    const groupedByEvent = matches.reduce((acc, match) => {
+        const key = `${match.event_id}::${match.event_name || `Event ${match.event_id}`}`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(match);
+        return acc;
+    }, {});
+
+    // Show selected event bracket, otherwise first available event to keep layout clean.
+    const eventKeys = Object.keys(groupedByEvent);
+    const targetEventKey = eventKeys[0];
+    const eventMatches = groupedByEvent[targetEventKey] || [];
+
+    const rounds = eventMatches.reduce((acc, match) => {
+        const round = Number(match.round_number || 1);
+        if (!acc[round]) acc[round] = [];
+        acc[round].push(match);
+        return acc;
+    }, {});
+
+    const roundNumbers = Object.keys(rounds).map(Number).sort((a, b) => a - b);
+
+    const cols = roundNumbers.map((roundNum) => {
+        const roundName = rounds[roundNum][0]?.round_name || `Round ${roundNum}`;
+        const isFinalRound = roundNum === Math.max(...roundNumbers);
+        const colMatches = rounds[roundNum]
+            .slice()
+            .sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0))
+            .map((match) => {
+                const status = String(match.status || 'pending').toLowerCase();
+                return `
+                    <article class="bracket-match ${status === 'ongoing' ? 'ongoing' : ''}">
+                        <div class="bracket-team">${escapeHtml(match.teamA || 'TBD')}</div>
+                        <div class="bracket-vs">VS</div>
+                        <div class="bracket-team">${escapeHtml(match.teamB || 'TBD')}</div>
+                        <div class="bracket-meta">
+                            <span>#${Number(match.match_order || 0)}</span>
+                            <span class="bracket-status-pill ${escapeHtml(status)}">${escapeHtml(status)}</span>
+                        </div>
+                    </article>
+                `;
+            }).join('');
+
+        return `
+            <section class="bracket-col ${isFinalRound ? 'final-col' : ''}">
+                ${isFinalRound ? `<div class="bracket-final-title">Final</div>` : `<h3>${escapeHtml(roundName)}</h3>`}
+                ${colMatches}
+            </section>
+        `;
+    }).join('');
+
+    board.innerHTML = `<div class="bracket-wrap">${cols}</div>`;
 }
 
 function updateRoundCounter() {
