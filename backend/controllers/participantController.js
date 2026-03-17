@@ -842,6 +842,30 @@ exports.exportTopBestCategoryParticipants = async (req, res) => {
             `,
             [eventId]
         );
+        const [participantAverageRows] = await connection.query(
+            `
+            SELECT p.id,
+                   p.participant_name,
+                   COALESCE(NULLIF(p.team_name, ''), p.participant_name) AS team_name,
+                   p.problem_name,
+                   ROUND(
+                     COALESCE(SUM(
+                        c.percentage * (
+                          (COALESCE((SELECT AVG(g.score) FROM grade g WHERE g.participant_id = p.id AND g.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.panelist_weight / 100) +
+                          (COALESCE((SELECT AVG(sg.score) FROM student_grade sg WHERE sg.participant_id = p.id AND sg.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.student_weight / 100)
+                        )
+                     ), 0),
+                     2
+                   ) AS average_score
+            FROM participant p
+            LEFT JOIN criteria c ON c.event_id = p.event_id
+            LEFT JOIN event ev ON ev.id = p.event_id
+            WHERE p.event_id = ?
+            GROUP BY p.id, p.participant_name, p.team_name, p.problem_name
+            ORDER BY average_score DESC, p.participant_name ASC
+            `,
+            [eventId]
+        );
 
         connection.release();
 
@@ -905,6 +929,17 @@ exports.exportTopBestCategoryParticipants = async (req, res) => {
                     </tr>
                 `).join('')
                 : '<tr><td colspan="3">No teams found for this event.</td></tr>';
+            const participantAverageHtml = participantAverageRows.length
+                ? participantAverageRows.map((r, idx) => `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${escapeHtml(r.participant_name || '')}</td>
+                        <td>${escapeHtml(r.team_name || '')}</td>
+                        <td>${escapeHtml(r.problem_name || '')}</td>
+                        <td>${escapeHtml(Number.isFinite(Number(r.average_score)) ? Number(r.average_score).toFixed(2) : '0.00')}</td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="5">No participants found for this event.</td></tr>';
 
             const htmlDoc = `
                 <html>
@@ -945,6 +980,19 @@ exports.exportTopBestCategoryParticipants = async (req, res) => {
                         </thead>
                         <tbody>${teamAverageHtml}</tbody>
                     </table>
+                    <h2 style="margin-top:24px;">All Participants with Average</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Participant Name</th>
+                                <th>Team Name</th>
+                                <th>Problem Name</th>
+                                <th>Average</th>
+                            </tr>
+                        </thead>
+                        <tbody>${participantAverageHtml}</tbody>
+                    </table>
                 </body>
                 </html>
             `;
@@ -981,6 +1029,22 @@ exports.exportTopBestCategoryParticipants = async (req, res) => {
             });
         } else {
             aoa.push(['', 'No teams found for this event.', '']);
+        }
+        aoa.push([]);
+        aoa.push(['All Participants with Average']);
+        aoa.push(['Rank', 'Participant Name', 'Team Name', 'Problem Name', 'Average']);
+        if (participantAverageRows.length) {
+            participantAverageRows.forEach((r, idx) => {
+                aoa.push([
+                    idx + 1,
+                    r.participant_name || '',
+                    r.team_name || '',
+                    r.problem_name || '',
+                    Number.isFinite(Number(r.average_score)) ? Number(r.average_score) : 0
+                ]);
+            });
+        } else {
+            aoa.push(['', 'No participants found for this event.', '', '', '']);
         }
 
         const wb = XLSX.utils.book_new();
