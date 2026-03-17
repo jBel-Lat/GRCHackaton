@@ -246,6 +246,43 @@ class AdminApi {
         }
     }
 
+    async exportTopBestCategory(eventId, format = 'excel') {
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/participants/admin/event/${eventId}/top-best-category/export?format=${encodeURIComponent(format)}`,
+                {
+                    headers: this.getHeaders(),
+                    cache: 'no-store'
+                }
+            );
+
+            if (response.status === 401) {
+                let data = null;
+                try { data = await response.json(); } catch (_) {}
+                this.handleUnauthorized(data?.message);
+                return { success: false, message: data?.message || 'Unauthorized' };
+            }
+
+            if (!response.ok) {
+                let message = 'Export failed';
+                try {
+                    const data = await response.json();
+                    message = data?.message || message;
+                } catch (_) {}
+                return { success: false, message };
+            }
+
+            const blob = await response.blob();
+            const contentDisposition = response.headers.get('content-disposition') || '';
+            const fileMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+            const filename = fileMatch ? fileMatch[1] : (format === 'word' ? 'top_best_category.doc' : 'top_best_category.xlsx');
+            return { success: true, data: { blob, filename } };
+        } catch (error) {
+            console.error('Export top best category error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
     async updateEventScoringWeights(eventId, studentWeight, panelistWeight) {
         try {
             const response = await fetch(`${API_BASE_URL}/participants/admin/event/${eventId}/weights`, {

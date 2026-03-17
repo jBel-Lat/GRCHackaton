@@ -238,7 +238,7 @@ async function loadTopBestCategory(eventId) {
     const renderRows = (rows) => rows.map((row, idx) => `
         <div style="display:flex; justify-content:space-between; gap:8px; padding:4px 0;">
             <span><strong>#${idx + 1}</strong> ${row.participant_label}${row.problem_name ? ` (${row.problem_name})` : ''}</span>
-            <span style="font-weight:700; color:#9B0F06;">${row.votes} vote${Number(row.votes) === 1 ? '' : 's'}</span>
+            <span style="font-weight:700; color:#9B0F06;">Avg: ${Number(row.average_score || 0).toFixed(2)} | ${row.votes} vote${Number(row.votes) === 1 ? '' : 's'}</span>
         </div>
     `).join('');
 
@@ -755,6 +755,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (refreshSubmissionsBtn) {
         refreshSubmissionsBtn.addEventListener('click', () => loadSubmissionsTable(currentEventId || null));
+    }
+
+    const exportTopBestExcelBtn = document.getElementById('exportTopBestExcelBtn');
+    const exportTopBestWordBtn = document.getElementById('exportTopBestWordBtn');
+    if (exportTopBestExcelBtn) {
+        exportTopBestExcelBtn.addEventListener('click', () => downloadTopBestCategory('excel'));
+    }
+    if (exportTopBestWordBtn) {
+        exportTopBestWordBtn.addEventListener('click', () => downloadTopBestCategory('word'));
     }
 
     const addEventForm = document.getElementById('addEventForm');
@@ -1683,6 +1692,35 @@ async function importSubmissionsFromGoogleSheet() {
     }
     alert(message);
     await loadSubmissionsTable(currentEventId || null);
+}
+
+async function downloadTopBestCategory(format) {
+    if (!currentEventId) {
+        alert('Please select an event first.');
+        return;
+    }
+
+    const result = await adminApi.exportTopBestCategory(currentEventId, format);
+    if (!result.success) {
+        alert(result.message || 'Failed to export top best category data.');
+        return;
+    }
+
+    const blob = result.data?.blob;
+    const filename = result.data?.filename || (format === 'word' ? 'top_best_category.doc' : 'top_best_category.xlsx');
+    if (!blob) {
+        alert('No file data returned by server.');
+        return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
 }
 
 async function loadSubmissionsTable(eventId = null) {

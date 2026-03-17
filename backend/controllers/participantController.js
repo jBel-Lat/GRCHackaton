@@ -729,7 +729,21 @@ exports.getTopBestCategoryParticipants = async (req, res) => {
                    p.team_name,
                    p.problem_name,
                    bc.category,
-                   COUNT(bc.id) AS votes
+                   COUNT(bc.id) AS votes,
+                   (
+                     SELECT ROUND(
+                        COALESCE(SUM(
+                            c.percentage * (
+                                (COALESCE((SELECT AVG(g.score) FROM grade g WHERE g.participant_id = p.id AND g.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.panelist_weight / 100) +
+                                (COALESCE((SELECT AVG(sg.score) FROM student_grade sg WHERE sg.participant_id = p.id AND sg.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.student_weight / 100)
+                            )
+                        ), 0),
+                        2
+                     )
+                     FROM criteria c
+                     JOIN event ev ON ev.id = p.event_id
+                     WHERE c.event_id = p.event_id
+                   ) AS average_score
             FROM panelist_best_category bc
             JOIN participant p ON p.id = bc.participant_id
             WHERE bc.event_id = ?
@@ -755,6 +769,171 @@ exports.getTopBestCategoryParticipants = async (req, res) => {
     } catch (error) {
         console.error('getTopBestCategoryParticipants error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+exports.exportTopBestCategoryParticipants = async (req, res) => {
+    try {
+        const eventId = Number(req.params.event_id);
+        const format = String(req.query.format || 'excel').toLowerCase();
+        if (!Number.isFinite(eventId)) {
+            return res.status(400).json({ success: false, message: ERROR_MESSAGES.MISSING_REQUIRED_FIELDS });
+        }
+
+        const connection = await pool.getConnection();
+        await ensureBestCategoryTable(connection);
+
+        const [eventRows] = await connection.query('SELECT event_name FROM event WHERE id = ? LIMIT 1', [eventId]);
+        const eventName = eventRows[0]?.event_name || `event-${eventId}`;
+
+        const [rows] = await connection.query(
+            `
+            SELECT p.id,
+                   COALESCE(NULLIF(p.team_name, ''), p.participant_name) AS participant_label,
+                   p.team_name,
+                   p.problem_name,
+                   bc.category,
+                   COUNT(bc.id) AS votes,
+                   (
+                     SELECT ROUND(
+                        COALESCE(SUM(
+                            c.percentage * (
+                                (COALESCE((SELECT AVG(g.score) FROM grade g WHERE g.participant_id = p.id AND g.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.panelist_weight / 100) +
+                                (COALESCE((SELECT AVG(sg.score) FROM student_grade sg WHERE sg.participant_id = p.id AND sg.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.student_weight / 100)
+                            )
+                        ), 0),
+                        2
+                     )
+                     FROM criteria c
+                     JOIN event ev ON ev.id = p.event_id
+                     WHERE c.event_id = p.event_id
+                   ) AS average_score
+            FROM panelist_best_category bc
+            JOIN participant p ON p.id = bc.participant_id
+            WHERE bc.event_id = ?
+            GROUP BY p.id, p.team_name, p.participant_name, p.problem_name, bc.category
+            ORDER BY bc.category ASC, votes DESC, participant_label ASC
+            `,
+            [eventId]
+        );
+
+        connection.release();
+
+        const technical = rows.filter(r => r.category === 'best_technical_implementation').slice(0, 3);
+        const ethical = rows.filter(r => r.category === 'best_ethical_responsible_ai_design').slice(0, 3);
+
+        const exportedRows = [];
+        technical.forEach((row, idx) => {
+            exportedRows.push({
+                rank: idx + 1,
+                category: 'Best Technical Implementation',
+                team_name: row.participant_label || '',
+                problem_name: row.problem_name || '',
+                average_score: Number.isFinite(Number(row.average_score)) ? Number(row.average_score) : 0,
+                votes: Number(row.votes) || 0
+            });
+        });
+        ethical.forEach((row, idx) => {
+            exportedRows.push({
+                rank: idx + 1,
+                category: 'Best Ethical & Responsible AI Design',
+                team_name: row.participant_label || '',
+                problem_name: row.problem_name || '',
+                average_score: Number.isFinite(Number(row.average_score)) ? Number(row.average_score) : 0,
+                votes: Number(row.votes) || 0
+            });
+        });
+
+        const safeBase = String(eventName)
+            .replace(/[^a-z0-9-_]+/gi, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 80) || `event-${eventId}`;
+
+        if (format === 'word' || format === 'doc') {
+            const escapeHtml = (value) => String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+
+            const rowsHtml = exportedRows.length
+                ? exportedRows.map((r) => `
+                    <tr>
+                        <td>${r.rank}</td>
+                        <td>${escapeHtml(r.category)}</td>
+                        <td>${escapeHtml(r.team_name)}</td>
+                        <td>${escapeHtml(r.problem_name)}</td>
+                        <td>${escapeHtml(r.average_score)}</td>
+                        <td>${escapeHtml(r.votes)}</td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="6">No top category data yet.</td></tr>';
+
+            const htmlDoc = `
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Top Best Category Export</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        h2 { margin-bottom: 8px; }
+                        table { border-collapse: collapse; width: 100%; }
+                        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+                        th { background: #f4f4f4; }
+                    </style>
+                </head>
+                <body>
+                    <h2>Top Best Category Export - ${escapeHtml(eventName)}</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Category</th>
+                                <th>Team Name</th>
+                                <th>Problem Name</th>
+                                <th>Average</th>
+                                <th>Votes</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                </body>
+                </html>
+            `;
+
+            res.setHeader('Content-Type', 'application/msword');
+            res.setHeader('Content-Disposition', `attachment; filename="${safeBase}_top_best_category.doc"`);
+            return res.send(htmlDoc);
+        }
+
+        const sheetRows = exportedRows.map((r) => ({
+            Rank: r.rank,
+            Category: r.category,
+            'Team Name': r.team_name,
+            'Problem Name': r.problem_name,
+            Average: r.average_score,
+            Votes: r.votes
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(sheetRows.length ? sheetRows : [{
+            Rank: '',
+            Category: '',
+            'Team Name': 'No top category data yet.',
+            'Problem Name': '',
+            Average: '',
+            Votes: ''
+        }]);
+        XLSX.utils.book_append_sheet(wb, ws, 'TopBestCategory');
+        const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeBase}_top_best_category.xlsx"`);
+        return res.send(excelBuffer);
+    } catch (error) {
+        console.error('exportTopBestCategoryParticipants error:', error);
+        return res.status(500).json({ success: false, message: 'Server error' });
     }
 };
 
