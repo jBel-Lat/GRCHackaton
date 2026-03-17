@@ -26,6 +26,7 @@ function setupEventListeners() {
     document.getElementById('refreshMatchesBtn')?.addEventListener('click', () => {
         if (tournamentState.selectedEventId) loadMatchesForEvent(tournamentState.selectedEventId);
     });
+    document.getElementById('advanceRoundBtn')?.addEventListener('click', advanceToNextRound);
 
     document.getElementById('bracketTypeSelect')?.addEventListener('change', updateBracketButtonLabel);
 
@@ -331,6 +332,9 @@ function renderMatches(matches) {
     const container = document.getElementById('bracketContainer');
     if (!container) return;
 
+    renderBracketFlow(matches);
+    updateAdvanceRoundButton(matches);
+
     if (!matches.length) {
         container.innerHTML = '<p class="tourney-empty-note">No matches yet. Generate a bracket to create match cards.</p>';
         return;
@@ -361,6 +365,73 @@ function renderMatches(matches) {
     }).join('');
 
     container.innerHTML = roundsHtml;
+}
+
+function renderBracketFlow(matches) {
+    const flowContainer = document.getElementById('bracketFlowContainer');
+    if (!flowContainer) return;
+
+    if (!matches.length) {
+        flowContainer.innerHTML = '';
+        return;
+    }
+
+    const grouped = matches.reduce((acc, match) => {
+        const round = Number(match.round_number || 1);
+        if (!acc[round]) acc[round] = [];
+        acc[round].push(match);
+        return acc;
+    }, {});
+
+    const rounds = Object.keys(grouped)
+        .map((round) => Number(round))
+        .sort((a, b) => a - b);
+
+    const html = rounds.map((round, idx) => {
+        const roundMatches = grouped[round].slice().sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
+        const cards = roundMatches.map((match) => {
+            const status = String(match.status || 'pending').toLowerCase();
+            const hasWinner = Number(match.winner_team_id) > 0;
+            return `
+                <div class="flow-match ${status}">
+                    <div class="flow-team">${escapeHtml(match.teamA)}</div>
+                    <div class="flow-vs">vs</div>
+                    <div class="flow-team">${escapeHtml(match.teamB)}</div>
+                    <div class="flow-meta">
+                        <span>${escapeHtml(status)}</span>
+                        ${hasWinner ? '<span class="flow-winner-dot" title="Winner set"></span>' : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="flow-round ${idx < rounds.length - 1 ? 'has-next' : ''}">
+                <h5>Round ${round}</h5>
+                <div class="flow-round-matches">${cards}</div>
+            </div>
+        `;
+    }).join('');
+
+    flowContainer.innerHTML = `<div class="flow-grid">${html}</div>`;
+}
+
+function updateAdvanceRoundButton(matches) {
+    const btn = document.getElementById('advanceRoundBtn');
+    if (!btn) return;
+
+    if (!matches.length) {
+        btn.style.display = 'none';
+        return;
+    }
+
+    const maxRound = Math.max(...matches.map((m) => Number(m.round_number || 1)));
+    const latestRoundMatches = matches.filter((m) => Number(m.round_number || 1) === maxRound);
+    const allReady = latestRoundMatches.length > 0 && latestRoundMatches.every((match) => (
+        String(match.status || '').toLowerCase() === 'finished' && Number(match.winner_team_id || 0) > 0
+    ));
+    const isFinalRoundAlreadyDone = latestRoundMatches.length === 1 && allReady;
+    btn.style.display = allReady && !isFinalRoundAlreadyDone ? '' : 'none';
 }
 
 function renderMatchCard(match) {
@@ -580,6 +651,26 @@ async function saveMatchOpponents(matchId) {
     await loadMatchesForEvent(tournamentState.selectedEventId);
 }
 
+async function advanceToNextRound() {
+    if (!tournamentState.selectedEventId) {
+        showTournamentMessage('Please select a tournament event first.', 'error');
+        return;
+    }
+
+    const result = await adminApi.advanceMatchesRound(tournamentState.selectedEventId);
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Unable to advance to next round.', 'error');
+        return;
+    }
+
+    if (result.data?.completed) {
+        showTournamentMessage('Tournament complete. Champion decided.', 'success');
+    } else {
+        showTournamentMessage(result.message || 'Advanced to next round.', 'success');
+    }
+    await loadMatchesForEvent(tournamentState.selectedEventId);
+}
+
 function showTournamentMessage(message, type = 'info') {
     const messageDiv = document.getElementById('tournamentMessage');
     if (!messageDiv) return;
@@ -621,6 +712,7 @@ window.updateMatchStatus = updateMatchStatus;
 window.saveMatchWinner = saveMatchWinner;
 window.revertMatchWinner = revertMatchWinner;
 window.saveMatchOpponents = saveMatchOpponents;
+window.advanceToNextRound = advanceToNextRound;
 
 document.addEventListener('DOMContentLoaded', () => {
     initTournament();

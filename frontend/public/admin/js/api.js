@@ -696,6 +696,20 @@ class AdminApi {
         }
     }
 
+    async advanceMatchesRound(eventId) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/matches/advance-round`, {
+                method: 'POST',
+                headers: this.getHeaders(),
+                body: JSON.stringify({ event_id: eventId })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Advance matches round error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
     async updateMatchLiveUrl(matchId, facebookLiveUrl) {
         try {
             const response = await fetch(`${API_BASE_URL}/matches/${matchId}/live`, {

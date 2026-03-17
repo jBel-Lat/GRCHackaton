@@ -59,11 +59,32 @@ function buildFirstRoundMatches(teams) {
             teamB: teamB.team_name,
             teamA_participant_id: teamA.participant_id,
             teamB_participant_id: teamB.participant_id,
-            status: 'pending',
+            status: teamB.participant_id ? 'pending' : 'finished',
+            winner_team_id: teamB.participant_id ? null : (teamA.participant_id || null),
             match_order: (i / 2) + 1
         });
     }
     return matches;
+}
+
+async function getParticipantNamesByIds(connection, ids = []) {
+    const parsedIds = ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+    if (!parsedIds.length) return new Map();
+
+    const [rows] = await connection.query(
+        `
+            SELECT id, team_name, participant_name
+            FROM participant
+            WHERE id IN (${parsedIds.map(() => '?').join(',')})
+        `,
+        parsedIds
+    );
+
+    const map = new Map();
+    rows.forEach((row) => {
+        map.set(Number(row.id), (row.team_name || row.participant_name || `Team ${row.id}`));
+    });
+    return map;
 }
 
 async function getTournamentTeams(connection, eventId, teamIds = []) {
@@ -160,8 +181,8 @@ exports.generateMatches = async (req, res) => {
         const insertSql = `
             INSERT INTO matches (
                 event_id, round_name, round_number, teamA, teamB,
-                teamA_participant_id, teamB_participant_id, status, match_order
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                teamA_participant_id, teamB_participant_id, status, winner_team_id, match_order
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
         for (const match of matches) {
@@ -174,6 +195,7 @@ exports.generateMatches = async (req, res) => {
                 match.teamA_participant_id,
                 match.teamB_participant_id,
                 match.status,
+                match.winner_team_id,
                 match.match_order
             ]);
         }
@@ -298,13 +320,19 @@ exports.updateMatchWinner = async (req, res) => {
         }
 
         let winnerTeamId = null;
+        let nextStatus = null;
         if (winnerSide === 'teama') winnerTeamId = rows[0].teamA_participant_id || null;
         if (winnerSide === 'teamb') winnerTeamId = rows[0].teamB_participant_id || null;
         if (!['teama', 'teamb', 'none', ''].includes(winnerSide)) {
             return res.status(400).json({ success: false, message: 'winner_side must be teamA, teamB, or none.' });
         }
+        if (winnerSide === 'teama' || winnerSide === 'teamb') {
+            nextStatus = 'finished';
+        } else {
+            nextStatus = 'pending';
+        }
 
-        await connection.query('UPDATE matches SET winner_team_id = ? WHERE id = ?', [winnerTeamId, matchId]);
+        await connection.query('UPDATE matches SET winner_team_id = ?, status = ? WHERE id = ?', [winnerTeamId, nextStatus, matchId]);
         return res.json({ success: true, message: 'Match winner updated successfully.' });
     } catch (error) {
         console.error('Update match winner error:', error);
@@ -363,6 +391,142 @@ exports.updateMatchOpponents = async (req, res) => {
     } catch (error) {
         console.error('Update match opponents error:', error);
         return res.status(500).json({ success: false, message: 'Server error while updating opponents.' });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
+exports.advanceToNextRound = async (req, res) => {
+    let connection;
+    try {
+        const parsedEventId = Number(req.body?.event_id);
+        if (!Number.isFinite(parsedEventId) || parsedEventId <= 0) {
+            return res.status(400).json({ success: false, message: 'event_id is required.' });
+        }
+
+        connection = await pool.getConnection();
+        await ensureMatchesTable(connection);
+
+        const [roundRows] = await connection.query(
+            'SELECT MAX(round_number) AS last_round FROM matches WHERE event_id = ?',
+            [parsedEventId]
+        );
+        const lastRound = Number(roundRows[0]?.last_round || 0);
+        if (!lastRound) {
+            return res.status(400).json({ success: false, message: 'No matches found for this tournament event.' });
+        }
+
+        const [existingNext] = await connection.query(
+            'SELECT COUNT(*) AS cnt FROM matches WHERE event_id = ? AND round_number = ?',
+            [parsedEventId, lastRound + 1]
+        );
+        if (Number(existingNext[0]?.cnt || 0) > 0) {
+            return res.status(400).json({ success: false, message: 'Next round is already generated.' });
+        }
+
+        const [lastRoundMatches] = await connection.query(
+            `
+                SELECT id, status, winner_team_id, match_order
+                FROM matches
+                WHERE event_id = ? AND round_number = ?
+                ORDER BY match_order ASC, id ASC
+            `,
+            [parsedEventId, lastRound]
+        );
+
+        const unfinished = lastRoundMatches.find(
+            (match) => String(match.status || '').toLowerCase() !== 'finished' || !match.winner_team_id
+        );
+        if (unfinished) {
+            return res.status(400).json({
+                success: false,
+                message: 'Finish all matches and set winners before advancing to next round.'
+            });
+        }
+
+        const winnerIds = lastRoundMatches.map((match) => Number(match.winner_team_id)).filter((id) => Number.isFinite(id) && id > 0);
+        if (winnerIds.length <= 1) {
+            return res.json({
+                success: true,
+                message: 'Tournament complete. No next round needed.',
+                data: { completed: true, champion_team_id: winnerIds[0] || null }
+            });
+        }
+
+        const nextRound = lastRound + 1;
+        const participantNameMap = await getParticipantNamesByIds(connection, winnerIds);
+        const nextRoundMatches = [];
+
+        for (let i = 0; i < winnerIds.length; i += 2) {
+            const teamAId = winnerIds[i];
+            const teamBId = winnerIds[i + 1] || null;
+            const teamAName = participantNameMap.get(teamAId) || `Team ${teamAId}`;
+            const teamBName = teamBId ? (participantNameMap.get(teamBId) || `Team ${teamBId}`) : 'BYE';
+
+            nextRoundMatches.push({
+                event_id: parsedEventId,
+                round_name: `Round ${nextRound}`,
+                round_number: nextRound,
+                teamA: teamAName,
+                teamB: teamBName,
+                teamA_participant_id: teamAId,
+                teamB_participant_id: teamBId,
+                status: teamBId ? 'pending' : 'finished',
+                winner_team_id: teamBId ? null : teamAId,
+                match_order: (i / 2) + 1
+            });
+        }
+
+        await connection.beginTransaction();
+        for (const match of nextRoundMatches) {
+            await connection.query(
+                `
+                    INSERT INTO matches (
+                        event_id, round_name, round_number, teamA, teamB,
+                        teamA_participant_id, teamB_participant_id, status, winner_team_id, match_order
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `,
+                [
+                    match.event_id,
+                    match.round_name,
+                    match.round_number,
+                    match.teamA,
+                    match.teamB,
+                    match.teamA_participant_id,
+                    match.teamB_participant_id,
+                    match.status,
+                    match.winner_team_id,
+                    match.match_order
+                ]
+            );
+        }
+        await connection.commit();
+
+        const [allMatches] = await connection.query(
+            `
+                SELECT m.id, m.event_id, e.event_name, m.round_name, m.round_number,
+                       m.teamA, m.teamB, m.teamA_participant_id, m.teamB_participant_id,
+                       m.status, m.facebook_live_url, m.winner_team_id, m.match_order,
+                       m.created_at, m.updated_at
+                FROM matches m
+                INNER JOIN event e ON e.id = m.event_id
+                WHERE m.event_id = ?
+                ORDER BY m.round_number ASC, m.match_order ASC, m.id ASC
+            `,
+            [parsedEventId]
+        );
+
+        return res.json({
+            success: true,
+            message: `Advanced to Round ${nextRound}.`,
+            data: allMatches
+        });
+    } catch (error) {
+        if (connection) {
+            try { await connection.rollback(); } catch (_) {}
+        }
+        console.error('Advance round error:', error);
+        return res.status(500).json({ success: false, message: 'Server error while advancing round.' });
     } finally {
         if (connection) connection.release();
     }

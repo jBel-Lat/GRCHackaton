@@ -5,6 +5,7 @@ const { adminAuthMiddleware } = require('../middleware/auth');
 
 router.get('/', matchController.getMatches);
 router.post('/generate', adminAuthMiddleware, matchController.generateMatches);
+router.post('/advance-round', adminAuthMiddleware, matchController.advanceToNextRound);
 router.put('/:id/live', adminAuthMiddleware, matchController.updateMatchLiveUrl);
 router.put('/:id/status', adminAuthMiddleware, matchController.updateMatchStatus);
 router.put('/:id/winner', adminAuthMiddleware, matchController.updateMatchWinner);
