@@ -111,34 +111,28 @@ function renderMatches() {
         return;
     }
 
-    const grouped = filtered.reduce((acc, match) => {
+    const groupedByEvent = filtered.reduce((acc, match) => {
         const eventKey = `${match.event_id}::${match.event_name || `Event ${match.event_id}`}`;
-        if (!acc[eventKey]) acc[eventKey] = {};
-
-        const roundName = match.round_name || `Round ${match.round_number || 1}`;
-        if (!acc[eventKey][roundName]) acc[eventKey][roundName] = [];
-        acc[eventKey][roundName].push(match);
+        if (!acc[eventKey]) acc[eventKey] = [];
+        acc[eventKey].push(match);
         return acc;
     }, {});
 
-    const html = Object.entries(grouped).map(([eventKey, rounds]) => {
+    const html = Object.entries(groupedByEvent).map(([eventKey, eventMatches]) => {
         const [, eventName] = eventKey.split('::');
-        const roundsHtml = Object.entries(rounds).map(([roundName, matches]) => {
-            const matchHtml = matches
-                .slice()
-                .sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0))
-                .map(renderMatchCard)
-                .join('');
+        const latestRound = Math.max(...eventMatches.map((m) => Number(m.round_number || 1)));
+        const latestMatches = eventMatches
+            .filter((m) => Number(m.round_number || 1) === latestRound)
+            .sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
+        const roundName = latestMatches[0]?.round_name || `Round ${latestRound}`;
+        const matchHtml = latestMatches.map(renderMatchCard).join('');
 
-            return `
-                <section class="round-section">
-                    <h2 class="round-title">${escapeHtml(eventName)} - ${escapeHtml(roundName)}</h2>
-                    <div class="match-list">${matchHtml}</div>
-                </section>
-            `;
-        }).join('');
-
-        return roundsHtml;
+        return `
+            <section class="round-section">
+                <h2 class="round-title">${escapeHtml(eventName)} - ${escapeHtml(roundName)}</h2>
+                <div class="match-list">${matchHtml}</div>
+            </section>
+        `;
     }).join('');
 
     container.innerHTML = html;
@@ -184,7 +178,6 @@ function renderMatchCard(match) {
             </div>
             <div class="match-actions">
                 <button class="btn btn-primary" onclick="toggleVideo(${matchId})">Watch Video</button>
-                ${isOpen ? '<button class="btn btn-secondary" onclick="minimizeVideo()">Minimize Video</button>' : ''}
             </div>
             <div class="video-panel ${isOpen ? 'open' : ''}">
                 ${isOpen ? renderVideoPanel(match) : ''}
