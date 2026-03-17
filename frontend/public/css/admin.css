@@ -1039,6 +1039,11 @@
     padding: 12px;
 }
 
+.admin-match-card.round-locked {
+    background: linear-gradient(180deg, #f3f5f8 0%, #e9edf2 100%);
+    border-color: #cfd8e3;
+}
+
 .admin-match-card.is-ongoing {
     border-color: #ef4444;
     box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.18);
@@ -1067,6 +1072,16 @@
 .admin-match-title span {
     color: #64748b;
     font-weight: 500;
+}
+
+.team-indicator {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    margin-right: 6px;
+    box-shadow: 0 0 6px rgba(15, 23, 42, 0.25);
+    vertical-align: middle;
 }
 
 .admin-match-badges {
@@ -1101,6 +1116,22 @@
     gap: 8px;
     flex-wrap: wrap;
     margin-top: 8px;
+}
+
+.tourney-mini-btn {
+    font-size: 0.78rem;
+    padding: 6px 10px;
+    line-height: 1.1;
+}
+
+.admin-match-card.round-locked .btn:disabled,
+.admin-match-card.round-locked input:disabled,
+.admin-match-card.round-locked select:disabled {
+    background: #d5dbe4 !important;
+    color: #7b8798 !important;
+    border-color: #c1cad7 !important;
+    cursor: not-allowed;
+    opacity: 1;
 }
 
 .admin-match-opponents {
@@ -1165,6 +1196,11 @@
     background: #eff6ff;
     color: #1d4ed8;
     border-left: 4px solid #1d4ed8;
+}
+
+#tournamentSection .section-body .btn {
+    font-size: 0.82rem;
+    padding: 7px 11px;
 }
 
 .admin-flow-board {

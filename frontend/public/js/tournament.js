@@ -7,6 +7,10 @@ const state = {
 };
 
 const API_BASE = '/api';
+const TEAM_COLOR_PALETTE = [
+    '#60a5fa', '#34d399', '#f59e0b', '#f472b6', '#a78bfa',
+    '#22d3ee', '#f87171', '#84cc16', '#fb7185', '#38bdf8'
+];
 
 function initTournamentPage() {
     document.getElementById('eventFilterSelect')?.addEventListener('change', (e) => {
@@ -177,11 +181,13 @@ function renderBracketBoard(matches) {
             .sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0))
             .map((match) => {
                 const status = String(match.status || 'pending').toLowerCase();
+                const teamAColor = getTeamColor(match.teamA || '');
+                const teamBColor = getTeamColor(match.teamB || '');
                 return `
-                    <article class="bracket-match ${status === 'ongoing' ? 'ongoing' : ''}">
-                        <div class="bracket-team">${escapeHtml(match.teamA || 'TBD')}</div>
+                    <article class="bracket-match ${status === 'ongoing' ? 'ongoing' : ''}" style="border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor};">
+                        <div class="bracket-team"><span class="team-indicator" style="background:${teamAColor};"></span>${escapeHtml(match.teamA || 'TBD')}</div>
                         <div class="bracket-vs">VS</div>
-                        <div class="bracket-team">${escapeHtml(match.teamB || 'TBD')}</div>
+                        <div class="bracket-team"><span class="team-indicator" style="background:${teamBColor};"></span>${escapeHtml(match.teamB || 'TBD')}</div>
                         <div class="bracket-meta">
                             <span>#${Number(match.match_order || 0)}</span>
                             <span class="bracket-status-pill ${escapeHtml(status)}">${escapeHtml(status)}</span>
@@ -226,13 +232,19 @@ function renderMatchCard(match) {
     const hasLive = Boolean((match.facebook_live_url || '').trim());
     const isOpen = state.expandedMatchId === matchId;
     const showLiveBadge = status === 'ongoing' && hasLive;
+    const teamAColor = getTeamColor(match.teamA || '');
+    const teamBColor = getTeamColor(match.teamB || '');
 
     return `
-        <article class="match-card ${status === 'ongoing' ? 'ongoing' : ''}">
+        <article class="match-card ${status === 'ongoing' ? 'ongoing' : ''}" style="border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor};">
             <div class="match-header">
                 <div>
                     <div class="match-id">Match #${Number(match.match_order || 0)}</div>
-                    <div class="match-teams">${escapeHtml(match.teamA)} <span>vs</span> ${escapeHtml(match.teamB)}</div>
+                    <div class="match-teams">
+                        <span class="team-indicator" style="background:${teamAColor};"></span>${escapeHtml(match.teamA)}
+                        <span>vs</span>
+                        <span class="team-indicator" style="background:${teamBColor};"></span>${escapeHtml(match.teamB)}
+                    </div>
                 </div>
                 <div class="badge-row">
                     <span class="badge ${escapeHtml(status)}">${escapeHtml(status)}</span>
@@ -357,6 +369,18 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
     return escapeHtml(value).replace(/`/g, '&#96;');
+}
+
+function getTeamColor(teamName) {
+    const name = String(teamName || '').trim().toLowerCase();
+    if (!name) return '#64748b';
+    let hash = 0;
+    for (let i = 0; i < name.length; i += 1) {
+        hash = ((hash << 5) - hash) + name.charCodeAt(i);
+        hash |= 0;
+    }
+    const idx = Math.abs(hash) % TEAM_COLOR_PALETTE.length;
+    return TEAM_COLOR_PALETTE[idx];
 }
 
 window.toggleVideo = toggleVideo;

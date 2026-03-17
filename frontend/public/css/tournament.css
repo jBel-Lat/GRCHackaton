@@ -302,6 +302,16 @@ body {
     font-weight: 600;
 }
 
+.team-indicator {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    margin-right: 6px;
+    box-shadow: 0 0 8px rgba(96, 165, 250, 0.45);
+    vertical-align: middle;
+}
+
 .badge-row {
     display: flex;
     gap: 8px;

@@ -12,6 +12,11 @@ let tournamentState = {
     autoRefreshTimer: null
 };
 
+const TEAM_COLOR_PALETTE = [
+    '#60a5fa', '#34d399', '#f59e0b', '#f472b6', '#a78bfa',
+    '#22d3ee', '#f87171', '#84cc16', '#fb7185', '#38bdf8'
+];
+
 function initTournament() {
     setupEventListeners();
 }
@@ -445,6 +450,8 @@ function renderMatchCard(match, maxRound) {
     const isExpanded = tournamentState.expandedMatchId === matchId;
     const status = String(match.status || 'pending').toLowerCase();
     const isLockedRound = Number(match.round_number || 1) < Number(maxRound || 1);
+    const teamAColor = getTeamColor(match.teamA || '');
+    const teamBColor = getTeamColor(match.teamB || '');
     const statusColor = status === 'ongoing' ? '#b91c1c' : status === 'finished' ? '#166534' : '#475569';
     const hasLive = Boolean((match.facebook_live_url || '').trim());
     const showLiveBadge = status === 'ongoing' && hasLive;
@@ -456,11 +463,15 @@ function renderMatchCard(match, maxRound) {
         : (winnerSide === 'teamB' ? `${match.teamB} (Team B)` : 'Not selected');
 
     return `
-        <article class="admin-match-card ${status === 'ongoing' ? 'is-ongoing' : ''}">
+        <article class="admin-match-card ${status === 'ongoing' ? 'is-ongoing' : ''} ${isLockedRound ? 'round-locked' : ''}" style="border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor};">
             <div class="admin-match-head">
                 <div>
                     <div class="admin-match-id">Match #${Number(match.match_order || 0)}</div>
-                    <div class="admin-match-title">${escapeHtml(match.teamA)} <span>vs</span> ${escapeHtml(match.teamB)}</div>
+                    <div class="admin-match-title">
+                        <span class="team-indicator" style="background:${teamAColor};"></span>${escapeHtml(match.teamA)}
+                        <span>vs</span>
+                        <span class="team-indicator" style="background:${teamBColor};"></span>${escapeHtml(match.teamB)}
+                    </div>
                 </div>
                 <div class="admin-match-badges">
                     <span class="admin-status-pill" style="background:${statusColor};">${escapeHtml(status)}</span>
@@ -471,8 +482,8 @@ function renderMatchCard(match, maxRound) {
 
             <div class="admin-match-controls">
                 <input type="text" id="matchLiveUrl-${matchId}" value="${escapeAttr(match.facebook_live_url || '')}" placeholder="Paste Discord stream URL" class="search-box" style="width:100%;" ${isLockedRound ? 'disabled' : ''}>
-                <button class="btn btn-secondary" onclick="saveMatchLiveUrl(${matchId})" ${isLockedRound ? 'disabled' : ''}>Save Link</button>
-                <button class="btn btn-secondary" onclick="removeMatchLiveUrl(${matchId})" ${isLockedRound ? 'disabled' : ''}>Remove Link</button>
+                <button class="btn btn-secondary tourney-mini-btn" onclick="saveMatchLiveUrl(${matchId})" ${isLockedRound ? 'disabled' : ''}>Save Link</button>
+                <button class="btn btn-secondary tourney-mini-btn" onclick="removeMatchLiveUrl(${matchId})" ${isLockedRound ? 'disabled' : ''}>Remove Link</button>
                 <select id="matchStatus-${matchId}" class="search-box" style="padding:8px 10px;" ${isLockedRound ? 'disabled' : ''}>
                     <option value="pending" ${status === 'pending' ? 'selected' : ''}>Pending</option>
                     <option value="ongoing" ${status === 'ongoing' ? 'selected' : ''}>Ongoing</option>
@@ -481,13 +492,13 @@ function renderMatchCard(match, maxRound) {
             </div>
 
             <div class="admin-match-actions">
-                <button class="btn btn-primary" onclick="updateMatchStatus(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Status</button>
-                <button class="btn btn-secondary" onclick="toggleMatchVideo(${matchId})">${isExpanded ? 'Switch Video' : 'Watch Video'}</button>
+                <button class="btn btn-primary tourney-mini-btn" onclick="updateMatchStatus(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Status</button>
+                <button class="btn btn-secondary tourney-mini-btn" onclick="toggleMatchVideo(${matchId})">${isExpanded ? 'Switch Video' : 'Watch Video'}</button>
             </div>
             <div class="admin-match-controls admin-match-opponents">
                 <input type="text" id="matchTeamA-${matchId}" value="${escapeAttr(match.teamA || '')}" class="search-box" placeholder="Team A name" ${isLockedRound ? 'disabled' : ''}>
                 <input type="text" id="matchTeamB-${matchId}" value="${escapeAttr(match.teamB || '')}" class="search-box" placeholder="Team B name" ${isLockedRound ? 'disabled' : ''}>
-                <button class="btn btn-secondary" onclick="saveMatchOpponents(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Opponents</button>
+                <button class="btn btn-secondary tourney-mini-btn" onclick="saveMatchOpponents(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Opponents</button>
                 <select id="matchWinner-${matchId}" class="search-box" style="padding:8px 10px;" ${isLockedRound ? 'disabled' : ''}>
                     <option value="none" ${winnerSide === 'none' ? 'selected' : ''}>No Winner</option>
                     <option value="teamA" ${winnerSide === 'teamA' ? 'selected' : ''}>Winner: Team A</option>
@@ -495,8 +506,8 @@ function renderMatchCard(match, maxRound) {
                 </select>
             </div>
             <div class="admin-match-actions">
-                <button class="btn btn-primary" onclick="saveMatchWinner(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Winner</button>
-                <button class="btn btn-secondary" onclick="revertMatchWinner(${matchId})" ${isLockedRound ? 'disabled' : ''}>Revert Winner</button>
+                <button class="btn btn-primary tourney-mini-btn" onclick="saveMatchWinner(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Winner</button>
+                <button class="btn btn-secondary tourney-mini-btn" onclick="revertMatchWinner(${matchId})" ${isLockedRound ? 'disabled' : ''}>Revert Winner</button>
             </div>
             ${isLockedRound ? '<div class="admin-lock-note">Locked: previous round is finalized.</div>' : ''}
 
@@ -718,6 +729,18 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
     return escapeHtml(value).replace(/`/g, '&#96;');
+}
+
+function getTeamColor(teamName) {
+    const name = String(teamName || '').trim().toLowerCase();
+    if (!name) return '#64748b';
+    let hash = 0;
+    for (let i = 0; i < name.length; i += 1) {
+        hash = ((hash << 5) - hash) + name.charCodeAt(i);
+        hash |= 0;
+    }
+    const idx = Math.abs(hash) % TEAM_COLOR_PALETTE.length;
+    return TEAM_COLOR_PALETTE[idx];
 }
 
 function closeAllModals() {
