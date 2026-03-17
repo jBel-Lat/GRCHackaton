@@ -817,6 +817,32 @@ exports.exportTopBestCategoryParticipants = async (req, res) => {
             [eventId]
         );
 
+        const [teamAverageRows] = await connection.query(
+            `
+            SELECT t.team_name,
+                   ROUND(AVG(t.participant_total), 2) AS average_score
+            FROM (
+                SELECT COALESCE(NULLIF(p.team_name, ''), p.participant_name) AS team_name,
+                       (
+                         SELECT COALESCE(SUM(
+                            c.percentage * (
+                              (COALESCE((SELECT AVG(g.score) FROM grade g WHERE g.participant_id = p.id AND g.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.panelist_weight / 100) +
+                              (COALESCE((SELECT AVG(sg.score) FROM student_grade sg WHERE sg.participant_id = p.id AND sg.criteria_id = c.id), 0) / NULLIF(COALESCE(c.max_score, c.percentage, 100), 0)) * (ev.student_weight / 100)
+                            )
+                         ), 0)
+                         FROM criteria c
+                         JOIN event ev ON ev.id = p.event_id
+                         WHERE c.event_id = p.event_id
+                       ) AS participant_total
+                FROM participant p
+                WHERE p.event_id = ?
+            ) t
+            GROUP BY t.team_name
+            ORDER BY average_score DESC, t.team_name ASC
+            `,
+            [eventId]
+        );
+
         connection.release();
 
         const technical = rows.filter(r => r.category === 'best_technical_implementation').slice(0, 3);
@@ -870,6 +896,16 @@ exports.exportTopBestCategoryParticipants = async (req, res) => {
                 `).join('')
                 : '<tr><td colspan="6">No top category data yet.</td></tr>';
 
+            const teamAverageHtml = teamAverageRows.length
+                ? teamAverageRows.map((r, idx) => `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${escapeHtml(r.team_name)}</td>
+                        <td>${escapeHtml(Number.isFinite(Number(r.average_score)) ? Number(r.average_score).toFixed(2) : '0.00')}</td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="3">No teams found for this event.</td></tr>';
+
             const htmlDoc = `
                 <html>
                 <head>
@@ -898,6 +934,17 @@ exports.exportTopBestCategoryParticipants = async (req, res) => {
                         </thead>
                         <tbody>${rowsHtml}</tbody>
                     </table>
+                    <h2 style="margin-top:24px;">All Teams Average Scores</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Team Name</th>
+                                <th>Average</th>
+                            </tr>
+                        </thead>
+                        <tbody>${teamAverageHtml}</tbody>
+                    </table>
                 </body>
                 </html>
             `;
@@ -907,24 +954,37 @@ exports.exportTopBestCategoryParticipants = async (req, res) => {
             return res.send(htmlDoc);
         }
 
-        const sheetRows = exportedRows.map((r) => ({
-            Rank: r.rank,
-            Category: r.category,
-            'Team Name': r.team_name,
-            'Problem Name': r.problem_name,
-            Average: r.average_score,
-            Votes: r.votes
-        }));
+        const aoa = [];
+        aoa.push(['Top Best Category Export', eventName]);
+        aoa.push([]);
+        aoa.push(['TopBestCategoryBox Results']);
+        aoa.push(['Rank', 'Category', 'Team Name', 'Problem Name', 'Average', 'Votes']);
+
+        if (exportedRows.length) {
+            exportedRows.forEach((r) => {
+                aoa.push([r.rank, r.category, r.team_name, r.problem_name, r.average_score, r.votes]);
+            });
+        } else {
+            aoa.push(['', '', 'No top category data yet.', '', '', '']);
+        }
+
+        aoa.push([]);
+        aoa.push(['All Teams with Average']);
+        aoa.push(['Rank', 'Team Name', 'Average']);
+        if (teamAverageRows.length) {
+            teamAverageRows.forEach((r, idx) => {
+                aoa.push([
+                    idx + 1,
+                    r.team_name || '',
+                    Number.isFinite(Number(r.average_score)) ? Number(r.average_score) : 0
+                ]);
+            });
+        } else {
+            aoa.push(['', 'No teams found for this event.', '']);
+        }
 
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(sheetRows.length ? sheetRows : [{
-            Rank: '',
-            Category: '',
-            'Team Name': 'No top category data yet.',
-            'Problem Name': '',
-            Average: '',
-            Votes: ''
-        }]);
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
         XLSX.utils.book_append_sheet(wb, ws, 'TopBestCategory');
         const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
