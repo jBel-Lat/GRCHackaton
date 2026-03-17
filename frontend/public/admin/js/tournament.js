@@ -28,6 +28,7 @@ function setupEventListeners() {
     document.getElementById('addTeamToTournamentBtn')?.addEventListener('click', openAddTeamModal);
     document.getElementById('addTeamToTournamentForm')?.addEventListener('submit', handleAddTeamToTournament);
     document.getElementById('generateBracketBtn')?.addEventListener('click', generateBracket);
+    document.getElementById('resetBracketBtn')?.addEventListener('click', resetBracket);
     document.getElementById('refreshMatchesBtn')?.addEventListener('click', () => {
         if (tournamentState.selectedEventId) loadMatchesForEvent(tournamentState.selectedEventId);
     });
@@ -61,7 +62,13 @@ function updateBracketButtonLabel() {
     const btn = document.getElementById('generateBracketBtn');
     const select = document.getElementById('bracketTypeSelect');
     if (!btn || !select) return;
-    btn.textContent = select.value === 'mobile_legends' ? 'Generate Mobile Legends Bracket' : 'Generate Bracket';
+    if (select.value === 'mobile_legends') {
+        btn.textContent = 'Generate Mobile Legends Bracket';
+    } else if (select.value === 'double_elimination') {
+        btn.textContent = 'Generate Double Elimination Bracket';
+    } else {
+        btn.textContent = 'Generate Bracket';
+    }
 }
 
 function startAutoRefresh() {
@@ -299,13 +306,13 @@ async function generateBracket() {
         return;
     }
 
-    const confirmToken = window.prompt('Type CONFIRM to generate a new bracket. This will reset current bracket matches for this event.');
+    const bracketType = document.getElementById('bracketTypeSelect')?.value || 'single_elimination';
+    const confirmToken = window.prompt(`Type CONFIRM to generate a new ${bracketType.replace('_', ' ')} bracket. This will reset current bracket matches for this event.`);
     if (!confirmToken || String(confirmToken).trim().toUpperCase() !== 'CONFIRM') {
         showTournamentMessage('Bracket generation cancelled.', 'info');
         return;
     }
 
-    const bracketType = document.getElementById('bracketTypeSelect')?.value || 'single_elimination';
     const payload = {
         event_id: tournamentState.selectedEventId,
         team_ids: tournamentState.selectedTeams.map((team) => team.id),
@@ -321,6 +328,30 @@ async function generateBracket() {
     tournamentState.expandedMatchId = null;
     showTournamentMessage('Bracket generated successfully.', 'success');
     await loadMatchesForEvent(tournamentState.selectedEventId);
+}
+
+async function resetBracket() {
+    if (!tournamentState.selectedEventId) {
+        showTournamentMessage('Please select a tournament event first.', 'error');
+        return;
+    }
+
+    const confirmToken = window.prompt('Type RESET to clear all matches for this tournament event.');
+    if (!confirmToken || String(confirmToken).trim().toUpperCase() !== 'RESET') {
+        showTournamentMessage('Bracket reset cancelled.', 'info');
+        return;
+    }
+
+    const result = await adminApi.resetTournament(tournamentState.selectedEventId);
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Unable to reset bracket.', 'error');
+        return;
+    }
+
+    tournamentState.matches = [];
+    tournamentState.expandedMatchId = null;
+    renderMatches([]);
+    showTournamentMessage(result.message || 'Bracket reset successfully.', 'success');
 }
 
 async function loadMatchesForEvent(eventId, options = {}) {
@@ -351,31 +382,75 @@ function renderMatches(matches) {
         return;
     }
 
-    const grouped = matches.reduce((acc, match) => {
-        const key = match.round_name || `Round ${match.round_number || 1}`;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(match);
-        return acc;
-    }, {});
+    const hasDouble = matches.some((m) => ['upper', 'lower', 'grand_final', 'grand_final_reset'].includes(String(m.bracket_type || '').toLowerCase()));
     const maxRound = Math.max(...matches.map((m) => Number(m.round_number || 1)));
 
-    const roundsHtml = Object.keys(grouped).map((roundName) => {
-        const roundMatches = grouped[roundName]
-            .slice()
-            .sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
-        const cards = roundMatches.map((match) => renderMatchCard(match, maxRound)).join('');
-        return `
-            <section class="admin-round-block">
-                <div class="admin-round-header">
-                    <h4>${escapeHtml(roundName)}</h4>
-                    <span>${roundMatches.length} match${roundMatches.length === 1 ? '' : 'es'}</span>
-                </div>
-                <div class="admin-round-grid">${cards}</div>
-            </section>
-        `;
-    }).join('');
+    if (!hasDouble) {
+        const grouped = matches.reduce((acc, match) => {
+            const key = match.round_name || `Round ${match.round_number || 1}`;
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(match);
+            return acc;
+        }, {});
+        container.innerHTML = Object.keys(grouped).map((roundName) => {
+            const roundMatches = grouped[roundName]
+                .slice()
+                .sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
+            return `
+                <section class="admin-round-block">
+                    <div class="admin-round-header">
+                        <h4>${escapeHtml(roundName)}</h4>
+                        <span>${roundMatches.length} match${roundMatches.length === 1 ? '' : 'es'}</span>
+                    </div>
+                    <div class="admin-round-grid">${roundMatches.map((match) => renderMatchCard(match, maxRound)).join('')}</div>
+                </section>
+            `;
+        }).join('');
+        return;
+    }
 
-    container.innerHTML = roundsHtml;
+    const byType = {
+        upper: [],
+        lower: [],
+        grand_final: [],
+        grand_final_reset: []
+    };
+    matches.forEach((m) => {
+        const key = String(m.bracket_type || '').toLowerCase();
+        if (byType[key]) byType[key].push(m);
+    });
+
+    const section = (title, arr) => {
+        if (!arr.length) return '';
+        const groupedByRound = arr.reduce((acc, match) => {
+            const key = `${match.round_number || 1}::${match.round_name || `Round ${match.round_number || 1}`}`;
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(match);
+            return acc;
+        }, {});
+        const rounds = Object.entries(groupedByRound)
+            .sort((a, b) => Number(a[0].split('::')[0]) - Number(b[0].split('::')[0]))
+            .map(([key, roundMatches]) => {
+                const roundName = key.split('::')[1];
+                const sorted = roundMatches.slice().sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
+                return `
+                    <section class="admin-round-block">
+                        <div class="admin-round-header">
+                            <h4>${escapeHtml(roundName)}</h4>
+                            <span>${sorted.length} match${sorted.length === 1 ? '' : 'es'}</span>
+                        </div>
+                        <div class="admin-round-grid">${sorted.map((match) => renderMatchCard(match, maxRound)).join('')}</div>
+                    </section>
+                `;
+            }).join('');
+        return `<div class="admin-bracket-type-block"><h3 class="admin-bracket-type-title">${escapeHtml(title)}</h3>${rounds}</div>`;
+    };
+
+    container.innerHTML = [
+        section('UPPER BRACKET', byType.upper),
+        section('LOWER BRACKET', byType.lower),
+        section('FINALS', [...byType.grand_final, ...byType.grand_final_reset])
+    ].join('');
 }
 
 function renderBracketFlow(matches) {
@@ -387,22 +462,60 @@ function renderBracketFlow(matches) {
         return;
     }
 
-    const grouped = matches.reduce((acc, match) => {
-        const round = Number(match.round_number || 1);
-        if (!acc[round]) acc[round] = [];
-        acc[round].push(match);
-        return acc;
-    }, {});
+    const renderFlowGroup = (title, groupMatches) => {
+        if (!groupMatches.length) return '';
+        const grouped = groupMatches.reduce((acc, match) => {
+            const round = Number(match.round_number || 1);
+            if (!acc[round]) acc[round] = [];
+            acc[round].push(match);
+            return acc;
+        }, {});
+        const rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+        const roundsHtml = rounds.map((round, idx) => {
+            const roundMatches = grouped[round].slice().sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
+            const cards = roundMatches.map((match) => {
+                const status = String(match.status || 'pending').toLowerCase();
+                const winnerLabel = match.winner_team_name
+                    ? `<div class="flow-winner-text">Winner: ${escapeHtml(match.winner_team_name)}</div>`
+                    : '';
+                return `
+                    <div class="flow-match ${status}">
+                        <div class="flow-team">${escapeHtml(match.teamA)}</div>
+                        <div class="flow-vs">vs</div>
+                        <div class="flow-team">${escapeHtml(match.teamB)}</div>
+                        <div class="flow-meta"><span>${escapeHtml(status)}</span></div>
+                        ${winnerLabel}
+                    </div>
+                `;
+            }).join('');
+            return `
+                <div class="flow-round ${idx < rounds.length - 1 ? 'has-next' : ''}">
+                    <h5>Round ${round}</h5>
+                    <div class="flow-round-matches">${cards}</div>
+                </div>
+            `;
+        }).join('');
+        return `<div class="admin-flow-section"><h4>${escapeHtml(title)}</h4><div class="flow-grid">${roundsHtml}</div></div>`;
+    };
 
-    const rounds = Object.keys(grouped)
-        .map((round) => Number(round))
-        .sort((a, b) => a - b);
+    const byType = {
+        upper: matches.filter((m) => String(m.bracket_type || '').toLowerCase() === 'upper'),
+        lower: matches.filter((m) => String(m.bracket_type || '').toLowerCase() === 'lower'),
+        finals: matches.filter((m) => ['grand_final', 'grand_final_reset'].includes(String(m.bracket_type || '').toLowerCase())),
+        single: matches.filter((m) => String(m.bracket_type || '').toLowerCase() === 'single')
+    };
 
-    const html = rounds.map((round, idx) => {
-        const roundMatches = grouped[round].slice().sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
-        const cards = roundMatches.map((match) => {
+    if (byType.single.length && !byType.upper.length) {
+        const grouped = byType.single.reduce((acc, match) => {
+            const round = Number(match.round_number || 1);
+            if (!acc[round]) acc[round] = [];
+            acc[round].push(match);
+            return acc;
+        }, {});
+        const rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+        const html = rounds.map((round, idx) => {
+            const cards = grouped[round].slice().sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0)).map((match) => {
             const status = String(match.status || 'pending').toLowerCase();
-            const hasWinner = Number(match.winner_team_id) > 0;
             return `
                 <div class="flow-match ${status}">
                     <div class="flow-team">${escapeHtml(match.teamA)}</div>
@@ -410,21 +523,21 @@ function renderBracketFlow(matches) {
                     <div class="flow-team">${escapeHtml(match.teamB)}</div>
                     <div class="flow-meta">
                         <span>${escapeHtml(status)}</span>
-                        ${hasWinner ? '<span class="flow-winner-dot" title="Winner set"></span>' : ''}
                     </div>
                 </div>
             `;
+            }).join('');
+            return `<div class="flow-round ${idx < rounds.length - 1 ? 'has-next' : ''}"><h5>Round ${round}</h5><div class="flow-round-matches">${cards}</div></div>`;
         }).join('');
+        flowContainer.innerHTML = `<div class="flow-grid">${html}</div>`;
+        return;
+    }
 
-        return `
-            <div class="flow-round ${idx < rounds.length - 1 ? 'has-next' : ''}">
-                <h5>Round ${round}</h5>
-                <div class="flow-round-matches">${cards}</div>
-            </div>
-        `;
-    }).join('');
-
-    flowContainer.innerHTML = `<div class="flow-grid">${html}</div>`;
+    flowContainer.innerHTML = [
+        renderFlowGroup('UPPER BRACKET FLOW', byType.upper),
+        renderFlowGroup('LOWER BRACKET FLOW', byType.lower),
+        renderFlowGroup('FINALS FLOW', byType.finals)
+    ].join('');
 }
 
 function updateAdvanceRoundButton(matches) {
@@ -432,6 +545,12 @@ function updateAdvanceRoundButton(matches) {
     if (!btn) return;
 
     if (!matches.length) {
+        btn.style.display = 'none';
+        return;
+    }
+
+    const hasNonSingle = matches.some((m) => String(m.bracket_type || 'single') !== 'single');
+    if (hasNonSingle) {
         btn.style.display = 'none';
         return;
     }
@@ -449,7 +568,7 @@ function renderMatchCard(match, maxRound) {
     const matchId = Number(match.id);
     const isExpanded = tournamentState.expandedMatchId === matchId;
     const status = String(match.status || 'pending').toLowerCase();
-    const isLockedRound = Number(match.round_number || 1) < Number(maxRound || 1);
+    const isLockedRound = false;
     const teamAColor = getTeamColor(match.teamA || '');
     const teamBColor = getTeamColor(match.teamB || '');
     const statusColor = status === 'ongoing' ? '#b91c1c' : status === 'finished' ? '#166534' : '#475569';
@@ -461,6 +580,11 @@ function renderMatchCard(match, maxRound) {
     const winnerLabel = winnerSide === 'teamA'
         ? `${match.teamA} (Team A)`
         : (winnerSide === 'teamB' ? `${match.teamB} (Team B)` : 'Not selected');
+    const sourceA = match.source_label_teamA ? `<div class="admin-source-label">A: ${escapeHtml(match.source_label_teamA)}</div>` : '';
+    const sourceB = match.source_label_teamB ? `<div class="admin-source-label">B: ${escapeHtml(match.source_label_teamB)}</div>` : '';
+    const bracketLabel = String(match.bracket_type || 'single').replace(/_/g, ' ').toUpperCase();
+    const nextWinner = match.next_match_winner_id ? `W→#${Number(match.next_match_winner_id)}${String(match.next_match_winner_slot || 'A').toUpperCase()}` : 'W→—';
+    const nextLoser = match.next_match_loser_id ? `L→#${Number(match.next_match_loser_id)}${String(match.next_match_loser_slot || 'A').toUpperCase()}` : 'L→—';
 
     return `
         <article class="admin-match-card ${status === 'ongoing' ? 'is-ongoing' : ''} ${isLockedRound ? 'round-locked' : ''}" style="border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor};">
@@ -474,11 +598,17 @@ function renderMatchCard(match, maxRound) {
                     </div>
                 </div>
                 <div class="admin-match-badges">
+                    <span class="admin-status-pill" style="background:#334155;">${escapeHtml(bracketLabel)}</span>
                     <span class="admin-status-pill" style="background:${statusColor};">${escapeHtml(status)}</span>
                     ${showLiveBadge ? '<span class="admin-live-pill">LIVE</span>' : ''}
                 </div>
             </div>
             <div class="admin-match-winner"><strong>Winner:</strong> ${escapeHtml(winnerLabel)}</div>
+            <div class="admin-source-row">${sourceA}${sourceB}</div>
+            <div class="admin-source-row">
+                <div class="admin-source-label">${escapeHtml(nextWinner)}</div>
+                <div class="admin-source-label">${escapeHtml(nextLoser)}</div>
+            </div>
 
             <div class="admin-match-controls">
                 <input type="text" id="matchLiveUrl-${matchId}" value="${escapeAttr(match.facebook_live_url || '')}" placeholder="Paste Discord stream URL" class="search-box" style="width:100%;" ${isLockedRound ? 'disabled' : ''}>

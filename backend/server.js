@@ -43,6 +43,7 @@ app.use('/api/panelists', panelistRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/matches', matchRoutes);
+app.use('/api/tournament', matchRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

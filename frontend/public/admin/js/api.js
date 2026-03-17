@@ -754,7 +754,7 @@ class AdminApi {
 
     async updateMatchOpponents(matchId, payload) {
         try {
-            const response = await fetch(`${API_BASE_URL}/matches/${matchId}/opponents`, {
+            const response = await fetch(`${API_BASE_URL}/matches/${matchId}/teams`, {
                 method: 'PUT',
                 headers: this.getHeaders(),
                 body: JSON.stringify(payload)
@@ -762,6 +762,20 @@ class AdminApi {
             return await response.json();
         } catch (error) {
             console.error('Update match opponents error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
+    async resetTournament(eventId) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/matches/reset`, {
+                method: 'POST',
+                headers: this.getHeaders(),
+                body: JSON.stringify({ event_id: eventId })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Reset tournament error:', error);
             return { success: false, message: 'Network error' };
         }
     }

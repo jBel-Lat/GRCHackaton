@@ -249,12 +249,14 @@
                                 <select id="bracketTypeSelect" class="form-control" style="width: 260px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
                                     <option value="single_elimination">Single Elimination (Default)</option>
                                     <option value="mobile_legends">Mobile Legends Bracket</option>
+                                    <option value="double_elimination">Double Elimination (Upper + Lower)</option>
                                 </select>
                                 <button id="generateBracketBtn" class="btn btn-primary">Generate Bracket</button>
+                                <button id="resetBracketBtn" class="btn btn-danger">Reset Bracket</button>
                                 <button id="refreshMatchesBtn" class="btn btn-secondary">Refresh Matches</button>
                                 <button id="advanceRoundBtn" class="btn btn-primary" style="display:none;">Proceed to Next Round</button>
                             </div>
-                            <p style="margin:0 0 10px 0; color:#64748b; font-size:0.9em;">Each match below has its own Discord stream link and status. Only one video panel opens at a time.</p>
+                            <p style="margin:0 0 10px 0; color:#64748b; font-size:0.9em;">Each match below has its own stream link, status, and winner progression. Double elimination shows Upper, Lower, and Finals.</p>
                             <div id="bracketFlowContainer" class="admin-flow-board"></div>
                             <div id="bracketContainer" class="bracket"></div>
                         </div>

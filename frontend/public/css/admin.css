@@ -1032,6 +1032,17 @@
     gap: 12px;
 }
 
+.admin-bracket-type-block {
+    margin-bottom: 18px;
+}
+
+.admin-bracket-type-title {
+    margin: 0 0 10px 0;
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    color: #1e3a8a;
+}
+
 .admin-match-card {
     border: 1px solid #dbe3ef;
     border-radius: 12px;
@@ -1109,6 +1120,22 @@
     margin-top: 8px;
     color: #334155;
     font-size: 0.92rem;
+}
+
+.admin-source-row {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.admin-source-label {
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #334155;
+    font-size: 0.75rem;
+    font-weight: 600;
 }
 
 .admin-match-actions {
@@ -1219,6 +1246,17 @@
     min-width: fit-content;
 }
 
+.admin-flow-section {
+    margin-bottom: 12px;
+}
+
+.admin-flow-section h4 {
+    margin: 0 0 8px 0;
+    color: #1e3a8a;
+    letter-spacing: 0.06em;
+    font-size: 0.85rem;
+}
+
 .flow-round {
     min-width: 220px;
     position: relative;
@@ -1284,6 +1322,13 @@
     font-size: 0.72rem;
     text-transform: uppercase;
     color: #475569;
+}
+
+.flow-winner-text {
+    margin-top: 6px;
+    font-size: 0.72rem;
+    color: #166534;
+    font-weight: 700;
 }
 
 .flow-winner-dot {
