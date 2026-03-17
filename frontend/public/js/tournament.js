@@ -144,9 +144,10 @@ function renderBracketMatch(match) {
     const status = String(match.status || 'pending').toLowerCase();
     const teamAColor = getTeamColor(match.teamA || '');
     const teamBColor = getTeamColor(match.teamB || '');
+    const matchBorder = getMatchBorderColor(match.id);
     const winner = match.winner_team_name ? `<div class="bracket-winner">Winner: ${escapeHtml(match.winner_team_name)}</div>` : '';
     return `
-        <article class="bracket-match ${status === 'ongoing' ? 'ongoing' : ''}" style="border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor};">
+        <article class="bracket-match ${status === 'ongoing' ? 'ongoing' : ''}" style="border:1px solid ${matchBorder}; border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor}; box-shadow:0 0 0 1px ${matchBorder}33;">
             <div class="bracket-team"><span class="team-indicator" style="background:${teamAColor};"></span>${escapeHtml(match.teamA || 'TBD')}</div>
             <div class="bracket-vs">VS</div>
             <div class="bracket-team"><span class="team-indicator" style="background:${teamBColor};"></span>${escapeHtml(match.teamB || 'TBD')}</div>
@@ -179,12 +180,13 @@ function renderMatchCard(match) {
     const isOpen = state.expandedMatchId === id;
     const teamAColor = getTeamColor(match.teamA || '');
     const teamBColor = getTeamColor(match.teamB || '');
+    const matchBorder = getMatchBorderColor(match.id);
     const winner = match.winner_team_name ? `<div class="match-winner-label">Winner: ${escapeHtml(match.winner_team_name)}</div>` : '';
     const sourceA = match.source_label_teamA ? `<span class="match-source-pill">A: ${escapeHtml(match.source_label_teamA)}</span>` : '';
     const sourceB = match.source_label_teamB ? `<span class="match-source-pill">B: ${escapeHtml(match.source_label_teamB)}</span>` : '';
 
     return `
-        <article class="match-card ${status === 'ongoing' ? 'ongoing' : ''}" style="border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor};">
+        <article class="match-card ${status === 'ongoing' ? 'ongoing' : ''}" style="border:1px solid ${matchBorder}; border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor}; box-shadow:0 0 0 1px ${matchBorder}33;">
             <div class="match-header">
                 <div>
                     <div class="match-id">Match #${Number(match.match_order || 0)}</div>
@@ -259,6 +261,12 @@ function getTeamColor(teamName) {
     let hash = 0;
     for (let i = 0; i < name.length; i += 1) hash = ((hash << 5) - hash) + name.charCodeAt(i);
     return TEAM_COLOR_PALETTE[Math.abs(hash) % TEAM_COLOR_PALETTE.length];
+}
+
+function getMatchBorderColor(matchId) {
+    const value = Number(matchId || 0);
+    const idx = Math.abs(value) % TEAM_COLOR_PALETTE.length;
+    return TEAM_COLOR_PALETTE[idx];
 }
 
 function byOrder(a, b) {

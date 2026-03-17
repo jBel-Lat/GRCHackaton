@@ -571,6 +571,7 @@ function renderMatchCard(match, maxRound) {
     const isLockedRound = false;
     const teamAColor = getTeamColor(match.teamA || '');
     const teamBColor = getTeamColor(match.teamB || '');
+    const matchBorder = getMatchBorderColor(match.id);
     const statusColor = status === 'ongoing' ? '#b91c1c' : status === 'finished' ? '#166534' : '#475569';
     const hasLive = Boolean((match.facebook_live_url || '').trim());
     const showLiveBadge = status === 'ongoing' && hasLive;
@@ -587,7 +588,7 @@ function renderMatchCard(match, maxRound) {
     const nextLoser = match.next_match_loser_id ? `L→#${Number(match.next_match_loser_id)}${String(match.next_match_loser_slot || 'A').toUpperCase()}` : 'L→—';
 
     return `
-        <article class="admin-match-card ${status === 'ongoing' ? 'is-ongoing' : ''} ${isLockedRound ? 'round-locked' : ''}" style="border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor};">
+        <article class="admin-match-card ${status === 'ongoing' ? 'is-ongoing' : ''} ${isLockedRound ? 'round-locked' : ''}" style="border:1px solid ${matchBorder}; border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor}; box-shadow:0 0 0 1px ${matchBorder}33;">
             <div class="admin-match-head">
                 <div>
                     <div class="admin-match-id">Match #${Number(match.match_order || 0)}</div>
@@ -870,6 +871,12 @@ function getTeamColor(teamName) {
         hash |= 0;
     }
     const idx = Math.abs(hash) % TEAM_COLOR_PALETTE.length;
+    return TEAM_COLOR_PALETTE[idx];
+}
+
+function getMatchBorderColor(matchId) {
+    const value = Number(matchId || 0);
+    const idx = Math.abs(value) % TEAM_COLOR_PALETTE.length;
     return TEAM_COLOR_PALETTE[idx];
 }
 
