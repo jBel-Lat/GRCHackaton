@@ -752,6 +752,20 @@ class AdminApi {
         }
     }
 
+    async updateMatchSeries(matchId, payload) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/matches/${matchId}/series`, {
+                method: 'PUT',
+                headers: this.getHeaders(),
+                body: JSON.stringify(payload)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Update match series error:', error);
+            return { success: false, message: 'Network error' };
+        }
+    }
+
     async updateMatchOpponents(matchId, payload) {
         try {
             const response = await fetch(`${API_BASE_URL}/matches/${matchId}/teams`, {

@@ -1165,6 +1165,10 @@
     grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) auto auto;
 }
 
+.admin-series-controls {
+    grid-template-columns: minmax(140px, 180px) minmax(120px, 1fr) minmax(120px, 1fr) auto;
+}
+
 .match-video-panel {
     margin-top: 10px;
     overflow: hidden;

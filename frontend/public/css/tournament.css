@@ -78,9 +78,10 @@ body {
     min-height: 150px;
     border-radius: 12px;
     border: 1px solid rgba(117, 149, 196, 0.45);
-    background-size: cover;
+    background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
+    background-color: rgba(5, 9, 18, 0.92);
     overflow: hidden;
     box-shadow: inset 0 -18px 26px rgba(3, 7, 14, 0.62), 0 10px 24px rgba(0, 0, 0, 0.28);
 }
@@ -206,6 +207,93 @@ body {
     justify-content: center;
     align-items: flex-start;
     gap: 18px;
+}
+
+.public-flow-wrap {
+    display: grid;
+    gap: 14px;
+}
+
+.public-flow-section h4 {
+    margin: 0 0 8px 0;
+    color: #f2ca7d;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-size: 0.82rem;
+}
+
+.flow-grid {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    min-width: fit-content;
+}
+
+.flow-round {
+    min-width: 220px;
+    position: relative;
+}
+
+.flow-round.has-next::after {
+    content: '';
+    position: absolute;
+    right: -11px;
+    top: 52%;
+    width: 10px;
+    height: 2px;
+    background: #6b7fa8;
+}
+
+.flow-round h5 {
+    margin: 0 0 8px 0;
+    color: #c9daf9;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.flow-round-matches {
+    display: grid;
+    gap: 8px;
+}
+
+.flow-match {
+    border: 1px solid #35517d;
+    border-radius: 10px;
+    background: linear-gradient(160deg, rgba(19, 33, 55, 0.96), rgba(15, 25, 40, 0.96));
+    padding: 8px;
+}
+
+.flow-match.pending {
+    border-left: 4px solid #64748b;
+}
+
+.flow-match.ongoing {
+    border-left: 4px solid #ef4444;
+}
+
+.flow-match.finished {
+    border-left: 4px solid #16a34a;
+}
+
+.flow-team {
+    color: #f4f8ff;
+    font-weight: 700;
+    font-size: 0.82rem;
+}
+
+.flow-meta {
+    margin-top: 5px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: #9cb1d3;
+}
+
+.flow-winner-text {
+    margin-top: 5px;
+    font-size: 0.72rem;
+    color: #86efac;
+    font-weight: 700;
 }
 
 .bracket-col {
@@ -400,6 +488,18 @@ body {
     margin-top: 8px;
     color: #a7f3d0;
     font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.match-series-indicator,
+.bracket-series-indicator {
+    margin-top: 6px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    background: rgba(30, 64, 175, 0.18);
+    border: 1px solid rgba(96, 165, 250, 0.35);
+    color: #dbeafe;
+    font-size: 0.76rem;
     font-weight: 700;
 }
 

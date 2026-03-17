@@ -586,6 +586,9 @@ function renderMatchCard(match, maxRound) {
     const bracketLabel = String(match.bracket_type || 'single').replace(/_/g, ' ').toUpperCase();
     const nextWinner = match.next_match_winner_id ? `W→#${Number(match.next_match_winner_id)}${String(match.next_match_winner_slot || 'A').toUpperCase()}` : 'W→—';
     const nextLoser = match.next_match_loser_id ? `L→#${Number(match.next_match_loser_id)}${String(match.next_match_loser_slot || 'A').toUpperCase()}` : 'L→—';
+    const winTarget = Math.max(1, Number(match.win_target || 1));
+    const teamAWins = Math.max(0, Number(match.teamA_wins || 0));
+    const teamBWins = Math.max(0, Number(match.teamB_wins || 0));
 
     return `
         <article class="admin-match-card ${status === 'ongoing' ? 'is-ongoing' : ''} ${isLockedRound ? 'round-locked' : ''}" style="border:1px solid ${matchBorder}; border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor}; box-shadow:0 0 0 1px ${matchBorder}33;">
@@ -605,10 +608,17 @@ function renderMatchCard(match, maxRound) {
                 </div>
             </div>
             <div class="admin-match-winner"><strong>Winner:</strong> ${escapeHtml(winnerLabel)}</div>
+            <div class="admin-match-winner"><strong>Series:</strong> ${teamAWins} - ${teamBWins} (First to ${winTarget})</div>
             <div class="admin-source-row">${sourceA}${sourceB}</div>
             <div class="admin-source-row">
                 <div class="admin-source-label">${escapeHtml(nextWinner)}</div>
                 <div class="admin-source-label">${escapeHtml(nextLoser)}</div>
+            </div>
+            <div class="admin-match-controls admin-series-controls">
+                <input type="number" id="matchWinTarget-${matchId}" value="${winTarget}" min="1" max="7" class="search-box" placeholder="Wins needed" ${isLockedRound ? 'disabled' : ''}>
+                <input type="number" id="matchTeamAWins-${matchId}" value="${teamAWins}" min="0" max="7" class="search-box" placeholder="${escapeAttr(match.teamA)} wins" ${isLockedRound ? 'disabled' : ''}>
+                <input type="number" id="matchTeamBWins-${matchId}" value="${teamBWins}" min="0" max="7" class="search-box" placeholder="${escapeAttr(match.teamB)} wins" ${isLockedRound ? 'disabled' : ''}>
+                <button class="btn btn-secondary tourney-mini-btn" onclick="saveMatchSeries(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Series</button>
             </div>
 
             <div class="admin-match-controls">
@@ -632,8 +642,8 @@ function renderMatchCard(match, maxRound) {
                 <button class="btn btn-secondary tourney-mini-btn" onclick="saveMatchOpponents(${matchId})" ${isLockedRound ? 'disabled' : ''}>Update Opponents</button>
                 <select id="matchWinner-${matchId}" class="search-box" style="padding:8px 10px;" ${isLockedRound ? 'disabled' : ''}>
                     <option value="none" ${winnerSide === 'none' ? 'selected' : ''}>No Winner</option>
-                    <option value="teamA" ${winnerSide === 'teamA' ? 'selected' : ''}>Winner: Team A</option>
-                    <option value="teamB" ${winnerSide === 'teamB' ? 'selected' : ''}>Winner: Team B</option>
+                    <option value="teamA" ${winnerSide === 'teamA' ? 'selected' : ''}>Winner: ${escapeHtml(match.teamA || 'Team A')}</option>
+                    <option value="teamB" ${winnerSide === 'teamB' ? 'selected' : ''}>Winner: ${escapeHtml(match.teamB || 'Team B')}</option>
                 </select>
             </div>
             <div class="admin-match-actions">
@@ -776,6 +786,27 @@ async function saveMatchWinner(matchId) {
     await loadMatchesForEvent(tournamentState.selectedEventId);
 }
 
+async function saveMatchSeries(matchId) {
+    const winTargetEl = document.getElementById(`matchWinTarget-${matchId}`);
+    const teamAWinsEl = document.getElementById(`matchTeamAWins-${matchId}`);
+    const teamBWinsEl = document.getElementById(`matchTeamBWins-${matchId}`);
+
+    const payload = {
+        win_target: Number(winTargetEl?.value || 1),
+        teamA_wins: Number(teamAWinsEl?.value || 0),
+        teamB_wins: Number(teamBWinsEl?.value || 0)
+    };
+
+    const result = await adminApi.updateMatchSeries(matchId, payload);
+    if (!result.success) {
+        showTournamentMessage(result.message || 'Failed to update series.', 'error');
+        return;
+    }
+
+    showTournamentMessage(result.message || 'Series updated.', 'success');
+    await loadMatchesForEvent(tournamentState.selectedEventId);
+}
+
 async function revertMatchWinner(matchId) {
     const result = await adminApi.updateMatchWinner(matchId, 'none');
     if (!result.success) {
@@ -893,6 +924,7 @@ window.saveMatchLiveUrl = saveMatchLiveUrl;
 window.removeMatchLiveUrl = removeMatchLiveUrl;
 window.updateMatchStatus = updateMatchStatus;
 window.saveMatchWinner = saveMatchWinner;
+window.saveMatchSeries = saveMatchSeries;
 window.revertMatchWinner = revertMatchWinner;
 window.saveMatchOpponents = saveMatchOpponents;
 window.advanceToNextRound = advanceToNextRound;

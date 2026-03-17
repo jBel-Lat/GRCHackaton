@@ -49,6 +49,9 @@ async function ensureMatchesTable(connection) {
             next_match_winner_slot ENUM('A','B') NULL,
             next_match_loser_id INT NULL,
             next_match_loser_slot ENUM('A','B') NULL,
+            win_target INT NOT NULL DEFAULT 1,
+            teamA_wins INT NOT NULL DEFAULT 0,
+            teamB_wins INT NOT NULL DEFAULT 0,
             match_order INT NOT NULL DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -69,6 +72,9 @@ async function ensureMatchesTable(connection) {
     await ensureColumn(connection, 'source_label_teamB', `ALTER TABLE matches ADD COLUMN source_label_teamB VARCHAR(255) NULL AFTER source_label_teamA`);
     await ensureColumn(connection, 'source_match_teamA_id', `ALTER TABLE matches ADD COLUMN source_match_teamA_id INT NULL AFTER source_label_teamB`);
     await ensureColumn(connection, 'source_match_teamB_id', `ALTER TABLE matches ADD COLUMN source_match_teamB_id INT NULL AFTER source_match_teamA_id`);
+    await ensureColumn(connection, 'win_target', `ALTER TABLE matches ADD COLUMN win_target INT NOT NULL DEFAULT 1 AFTER next_match_loser_slot`);
+    await ensureColumn(connection, 'teamA_wins', `ALTER TABLE matches ADD COLUMN teamA_wins INT NOT NULL DEFAULT 0 AFTER win_target`);
+    await ensureColumn(connection, 'teamB_wins', `ALTER TABLE matches ADD COLUMN teamB_wins INT NOT NULL DEFAULT 0 AFTER teamA_wins`);
 }
 
 async function getTournamentTeams(connection, eventId, teamIds) {
@@ -113,9 +119,31 @@ async function setSlot(connection, matchId, slot, teamName, teamId, sourceLabel,
     const srcCol = isA ? 'source_label_teamA' : 'source_label_teamB';
     const srcMatchCol = isA ? 'source_match_teamA_id' : 'source_match_teamB_id';
     await connection.query(
-        `UPDATE matches SET ${teamCol}=?, ${idCol}=?, ${srcCol}=?, ${srcMatchCol}=?, winner_team_id=NULL, winner_team_name=NULL, loser_team_id=NULL, loser_team_name=NULL, status='pending' WHERE id=?`,
+        `UPDATE matches SET ${teamCol}=?, ${idCol}=?, ${srcCol}=?, ${srcMatchCol}=?, winner_team_id=NULL, winner_team_name=NULL, loser_team_id=NULL, loser_team_name=NULL, status='pending', teamA_wins=0, teamB_wins=0 WHERE id=?`,
         [teamName || 'TBD', teamId || null, sourceLabel || null, sourceMatchId || null, matchId]
     );
+}
+
+async function applyWinnerSelection(connection, match, side, matchId) {
+    const winnerName = side === 'teama' ? match.teamA : match.teamB;
+    const winnerId = side === 'teama' ? match.teamA_participant_id : match.teamB_participant_id;
+    const loserName = side === 'teama' ? match.teamB : match.teamA;
+    const loserId = side === 'teama' ? match.teamB_participant_id : match.teamA_participant_id;
+    if (!winnerName || winnerName === 'TBD') {
+        throw new Error('Cannot set winner while team slots are incomplete.');
+    }
+
+    await connection.query(
+        `UPDATE matches SET winner_team_id=?, winner_team_name=?, loser_team_id=?, loser_team_name=?, status='finished' WHERE id=?`,
+        [winnerId || null, winnerName, loserId || null, loserName || null, matchId]
+    );
+
+    if (match.next_match_winner_id) {
+        await setSlot(connection, match.next_match_winner_id, match.next_match_winner_slot || 'A', winnerName, winnerId, `Advanced from ${match.round_name}`, matchId);
+    }
+    if (match.next_match_loser_id && loserName && loserName !== 'TBD') {
+        await setSlot(connection, match.next_match_loser_id, match.next_match_loser_slot || 'A', loserName, loserId, `Dropped from ${match.round_name}`, matchId);
+    }
 }
 
 async function clearDependents(connection, sourceMatchId) {
@@ -190,7 +218,8 @@ exports.generateMatches = async (req, res) => {
                 return res.status(400).json({ success: false, message: 'Double elimination currently requires exactly 8 selected teams.' });
             }
             const map = new Map();
-            const tpl = buildDoubleTemplate8(shuffle(teams));
+            // Keep selected team order for double elimination to avoid perceived random outcomes.
+            const tpl = buildDoubleTemplate8(teams);
             for (const m of tpl) {
                 const [ins] = await connection.query(
                     `INSERT INTO matches (event_id, bracket_type, round_name, round_number, match_number, match_order, teamA, teamB, teamA_participant_id, teamB_participant_id, source_label_teamA, source_label_teamB, status)
@@ -293,18 +322,7 @@ exports.updateMatchWinner = async (req, res) => {
             return res.json({ success: true, message: 'Winner reverted and progression cleared.' });
         }
 
-        const winnerName = side === 'teama' ? m.teamA : m.teamB;
-        const winnerId = side === 'teama' ? m.teamA_participant_id : m.teamB_participant_id;
-        const loserName = side === 'teama' ? m.teamB : m.teamA;
-        const loserId = side === 'teama' ? m.teamB_participant_id : m.teamA_participant_id;
-        if (!winnerName || winnerName === 'TBD') {
-            await connection.rollback();
-            return res.status(400).json({ success: false, message: 'Cannot set winner while team slots are incomplete.' });
-        }
-
-        await connection.query(`UPDATE matches SET winner_team_id=?, winner_team_name=?, loser_team_id=?, loser_team_name=?, status='finished' WHERE id=?`, [winnerId || null, winnerName, loserId || null, loserName || null, id]);
-        if (m.next_match_winner_id) await setSlot(connection, m.next_match_winner_id, m.next_match_winner_slot || 'A', winnerName, winnerId, `Advanced from ${m.round_name}`, id);
-        if (m.next_match_loser_id && loserName && loserName !== 'TBD') await setSlot(connection, m.next_match_loser_id, m.next_match_loser_slot || 'A', loserName, loserId, `Dropped from ${m.round_name}`, id);
+        await applyWinnerSelection(connection, m, side, id);
 
         await connection.commit();
         return res.json({ success: true, message: 'Match winner updated successfully.' });
@@ -331,7 +349,7 @@ exports.updateMatchOpponents = async (req, res) => {
         await ensureMatchesTable(connection);
         await connection.beginTransaction();
         const [r] = await connection.query(
-            `UPDATE matches SET teamA=?, teamB=?, teamA_participant_id=?, teamB_participant_id=?, source_match_teamA_id=NULL, source_match_teamB_id=NULL, source_label_teamA='Manual Admin Assignment', source_label_teamB='Manual Admin Assignment', winner_team_id=NULL, winner_team_name=NULL, loser_team_id=NULL, loser_team_name=NULL, status='pending' WHERE id=?`,
+            `UPDATE matches SET teamA=?, teamB=?, teamA_participant_id=?, teamB_participant_id=?, source_match_teamA_id=NULL, source_match_teamB_id=NULL, source_label_teamA='Manual Admin Assignment', source_label_teamB='Manual Admin Assignment', winner_team_id=NULL, winner_team_name=NULL, loser_team_id=NULL, loser_team_name=NULL, teamA_wins=0, teamB_wins=0, status='pending' WHERE id=?`,
             [teamA, teamB, teamAId, teamBId, id]
         );
         if (!r.affectedRows) {
@@ -345,6 +363,71 @@ exports.updateMatchOpponents = async (req, res) => {
         if (connection) try { await connection.rollback(); } catch (_) {}
         console.error('Update match opponents error:', e);
         return res.status(500).json({ success: false, message: 'Server error while updating teams.' });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
+exports.updateMatchSeries = async (req, res) => {
+    let connection;
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id) || id <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid match id.' });
+        }
+
+        const winTarget = Math.max(1, Math.min(7, Number(req.body?.win_target || 1)));
+        const teamAWins = Math.max(0, Number(req.body?.teamA_wins || 0));
+        const teamBWins = Math.max(0, Number(req.body?.teamB_wins || 0));
+
+        connection = await pool.getConnection();
+        await ensureMatchesTable(connection);
+        await connection.beginTransaction();
+
+        const [rows] = await connection.query('SELECT * FROM matches WHERE id = ? LIMIT 1', [id]);
+        if (!rows.length) {
+            await connection.rollback();
+            return res.status(404).json({ success: false, message: 'Match not found.' });
+        }
+
+        const match = rows[0];
+        const hadWinner = Boolean(match.winner_team_name || match.winner_team_id);
+
+        await connection.query(
+            `UPDATE matches SET win_target = ?, teamA_wins = ?, teamB_wins = ? WHERE id = ?`,
+            [winTarget, teamAWins, teamBWins, id]
+        );
+
+        let winnerSide = null;
+        if (teamAWins >= winTarget || teamBWins >= winTarget) {
+            if (teamAWins === teamBWins) {
+                await connection.rollback();
+                return res.status(400).json({ success: false, message: 'Series cannot be tied at or above win target.' });
+            }
+            winnerSide = teamAWins > teamBWins ? 'teama' : 'teamb';
+        }
+
+        if (winnerSide) {
+            const [freshRows] = await connection.query('SELECT * FROM matches WHERE id = ? LIMIT 1', [id]);
+            await applyWinnerSelection(connection, freshRows[0], winnerSide, id);
+        } else {
+            await connection.query(
+                `UPDATE matches SET winner_team_id = NULL, winner_team_name = NULL, loser_team_id = NULL, loser_team_name = NULL, status = ? WHERE id = ?`,
+                [(teamAWins > 0 || teamBWins > 0) ? 'ongoing' : 'pending', id]
+            );
+            if (hadWinner) {
+                await clearDependents(connection, id);
+            }
+        }
+
+        await connection.commit();
+        return res.json({ success: true, message: 'Series score updated successfully.' });
+    } catch (e) {
+        if (connection) {
+            try { await connection.rollback(); } catch (_) {}
+        }
+        console.error('Update match series error:', e);
+        return res.status(500).json({ success: false, message: e.message || 'Server error while updating match series.' });
     } finally {
         if (connection) connection.release();
     }
@@ -370,4 +453,3 @@ exports.resetTournament = async (req, res) => {
         if (connection) connection.release();
     }
 };
-

@@ -10,6 +10,7 @@ router.post('/reset', adminAuthMiddleware, matchController.resetTournament);
 router.put('/:id/live', adminAuthMiddleware, matchController.updateMatchLiveUrl);
 router.put('/:id/status', adminAuthMiddleware, matchController.updateMatchStatus);
 router.put('/:id/winner', adminAuthMiddleware, matchController.updateMatchWinner);
+router.put('/:id/series', adminAuthMiddleware, matchController.updateMatchSeries);
 router.put('/:id/teams', adminAuthMiddleware, matchController.updateMatchOpponents);
 router.put('/:id/opponents', adminAuthMiddleware, matchController.updateMatchOpponents);
 
