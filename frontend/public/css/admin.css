@@ -1038,6 +1038,9 @@
     border: 1px solid #334155;
     border-radius: 12px;
     padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .admin-bracket-type-title {

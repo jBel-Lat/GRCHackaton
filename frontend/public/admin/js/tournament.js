@@ -589,8 +589,10 @@ function renderMatchCard(match, maxRound) {
     const winnerLabel = winnerSide === 'teamA'
         ? `${match.teamA} (Team A)`
         : (winnerSide === 'teamB' ? `${match.teamB} (Team B)` : 'Not selected');
-    const sourceA = match.source_label_teamA ? `<div class="admin-source-label">A: ${escapeHtml(match.source_label_teamA)}</div>` : '';
-    const sourceB = match.source_label_teamB ? `<div class="admin-source-label">B: ${escapeHtml(match.source_label_teamB)}</div>` : '';
+    const sourceAValue = String(match.source_label_teamA || '').trim();
+    const sourceBValue = String(match.source_label_teamB || '').trim();
+    const sourceA = (sourceAValue && !/seed/i.test(sourceAValue)) ? `<div class="admin-source-label">A: ${escapeHtml(sourceAValue)}</div>` : '';
+    const sourceB = (sourceBValue && !/seed/i.test(sourceBValue)) ? `<div class="admin-source-label">B: ${escapeHtml(sourceBValue)}</div>` : '';
     const bracketLabel = String(match.bracket_type || 'single').replace(/_/g, ' ').toUpperCase();
     const nextWinner = match.next_match_winner_id ? `W→#${Number(match.next_match_winner_id)}${String(match.next_match_winner_slot || 'A').toUpperCase()}` : 'W→—';
     const nextLoser = match.next_match_loser_id ? `L→#${Number(match.next_match_loser_id)}${String(match.next_match_loser_slot || 'A').toUpperCase()}` : 'L→—';

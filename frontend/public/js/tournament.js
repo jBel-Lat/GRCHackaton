@@ -259,8 +259,10 @@ function renderMatchCard(match) {
     const teamBColor = getTeamColor(match.teamB || '');
     const matchBorder = getMatchBorderColor(match.id);
     const winner = match.winner_team_name ? `<div class="match-winner-label">Winner: ${escapeHtml(match.winner_team_name)}</div>` : '';
-    const sourceA = match.source_label_teamA ? `<span class="match-source-pill">A: ${escapeHtml(match.source_label_teamA)}</span>` : '';
-    const sourceB = match.source_label_teamB ? `<span class="match-source-pill">B: ${escapeHtml(match.source_label_teamB)}</span>` : '';
+    const sourceAValue = String(match.source_label_teamA || '').trim();
+    const sourceBValue = String(match.source_label_teamB || '').trim();
+    const sourceA = (sourceAValue && !/seed/i.test(sourceAValue)) ? `<span class="match-source-pill">A: ${escapeHtml(sourceAValue)}</span>` : '';
+    const sourceB = (sourceBValue && !/seed/i.test(sourceBValue)) ? `<span class="match-source-pill">B: ${escapeHtml(sourceBValue)}</span>` : '';
     const series = renderSeriesIndicator(match, 'match-series-indicator');
 
     return `

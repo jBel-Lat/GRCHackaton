@@ -165,10 +165,10 @@ async function clearDependents(connection, sourceMatchId) {
 function buildDoubleTemplate8(teams) {
     const t = teams.slice(0, 8);
     return [
-        { k: 'U1M1', bt: 'upper', rn: 'Upper Round 1', r: 1, n: 1, o: 1, ta: t[0], tb: t[1], sa: 'Seed 1', sb: 'Seed 2', nw: ['U2M1', 'A'], nl: ['L1M1', 'A'] },
-        { k: 'U1M2', bt: 'upper', rn: 'Upper Round 1', r: 1, n: 2, o: 2, ta: t[2], tb: t[3], sa: 'Seed 3', sb: 'Seed 4', nw: ['U2M1', 'B'], nl: ['L1M1', 'B'] },
-        { k: 'U1M3', bt: 'upper', rn: 'Upper Round 1', r: 1, n: 3, o: 3, ta: t[4], tb: t[5], sa: 'Seed 5', sb: 'Seed 6', nw: ['U2M2', 'A'], nl: ['L1M2', 'A'] },
-        { k: 'U1M4', bt: 'upper', rn: 'Upper Round 1', r: 1, n: 4, o: 4, ta: t[6], tb: t[7], sa: 'Seed 7', sb: 'Seed 8', nw: ['U2M2', 'B'], nl: ['L1M2', 'B'] },
+        { k: 'U1M1', bt: 'upper', rn: 'Upper Round 1', r: 1, n: 1, o: 1, ta: t[0], tb: t[1], sa: null, sb: null, nw: ['U2M1', 'A'], nl: ['L1M1', 'A'] },
+        { k: 'U1M2', bt: 'upper', rn: 'Upper Round 1', r: 1, n: 2, o: 2, ta: t[2], tb: t[3], sa: null, sb: null, nw: ['U2M1', 'B'], nl: ['L1M1', 'B'] },
+        { k: 'U1M3', bt: 'upper', rn: 'Upper Round 1', r: 1, n: 3, o: 3, ta: t[4], tb: t[5], sa: null, sb: null, nw: ['U2M2', 'A'], nl: ['L1M2', 'A'] },
+        { k: 'U1M4', bt: 'upper', rn: 'Upper Round 1', r: 1, n: 4, o: 4, ta: t[6], tb: t[7], sa: null, sb: null, nw: ['U2M2', 'B'], nl: ['L1M2', 'B'] },
         { k: 'U2M1', bt: 'upper', rn: 'Upper Round 2', r: 2, n: 1, o: 5, sa: 'Winner U1M1', sb: 'Winner U1M2', srcA: 'U1M1', srcB: 'U1M2', nw: ['U3M1', 'A'], nl: ['L2M1', 'B'] },
         { k: 'U2M2', bt: 'upper', rn: 'Upper Round 2', r: 2, n: 2, o: 6, sa: 'Winner U1M3', sb: 'Winner U1M4', srcA: 'U1M3', srcB: 'U1M4', nw: ['U3M1', 'B'], nl: ['L2M2', 'B'] },
         { k: 'U3M1', bt: 'upper', rn: 'Upper Final', r: 3, n: 1, o: 7, sa: 'Winner U2M1', sb: 'Winner U2M2', srcA: 'U2M1', srcB: 'U2M2', nw: ['GF1', 'A'], nl: ['L4M1', 'B'] },
