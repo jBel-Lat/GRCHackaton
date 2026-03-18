@@ -433,7 +433,11 @@ function renderMatches(matches) {
 
     const section = (title, arr, typeClass = '') => {
         if (!arr.length) return '';
-        const groupedByRound = arr.reduce((acc, match) => {
+        const visibleMatches = arr.filter(hasReadyOpponent);
+        if (!visibleMatches.length) {
+            return `<div class="admin-bracket-type-block ${escapeHtml(typeClass)}"><h3 class="admin-bracket-type-title">${escapeHtml(title)}</h3><p class="tourney-empty-note">No ready matchups yet for this bracket.</p></div>`;
+        }
+        const groupedByRound = visibleMatches.reduce((acc, match) => {
             const key = `${match.round_number || 1}::${match.round_name || `Round ${match.round_number || 1}`}`;
             if (!acc[key]) acc[key] = [];
             acc[key].push(match);
@@ -478,7 +482,11 @@ function renderBracketFlow(matches) {
 
     const renderFlowGroup = (title, groupMatches) => {
         if (!groupMatches.length) return '';
-        const grouped = groupMatches.reduce((acc, match) => {
+        const visibleMatches = groupMatches.filter(hasReadyOpponent);
+        if (!visibleMatches.length) {
+            return `<div class="admin-flow-section"><h4>${escapeHtml(title)}</h4><p class="tourney-empty-note">No ready matchups yet for this bracket.</p></div>`;
+        }
+        const grouped = visibleMatches.reduce((acc, match) => {
             const round = Number(match.round_number || 1);
             if (!acc[round]) acc[round] = [];
             acc[round].push(match);
@@ -947,6 +955,14 @@ function getMatchBorderColor(matchId) {
     const value = Number(matchId || 0);
     const idx = Math.abs(value) % TEAM_COLOR_PALETTE.length;
     return TEAM_COLOR_PALETTE[idx];
+}
+
+function hasReadyOpponent(match) {
+    const teamA = String(match?.teamA || '').trim();
+    const teamB = String(match?.teamB || '').trim();
+    if (!teamA || !teamB) return false;
+    if (teamA.toUpperCase() === 'TBD' || teamB.toUpperCase() === 'TBD') return false;
+    return true;
 }
 
 function closeAllModals() {
