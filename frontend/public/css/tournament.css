@@ -81,37 +81,31 @@ body {
     background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
-    background-color: rgba(5, 9, 18, 0.92);
+    background-color: #000;
     overflow: hidden;
     box-shadow: inset 0 -18px 26px rgba(3, 7, 14, 0.62), 0 10px 24px rgba(0, 0, 0, 0.28);
 }
 
 .header-art::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(145deg, rgba(45, 212, 191, 0.08), rgba(245, 158, 11, 0.07) 40%, rgba(7, 12, 20, 0.32) 100%);
+    content: none;
 }
 
 .art-left {
-    background-image:
-        radial-gradient(circle at 18% 20%, rgba(43, 130, 247, 0.52), rgba(7, 12, 20, 0.35) 45%),
-        url('/img/grc.png');
+    background-color: #000;
+    background-image: url('/img/grc.png');
 }
 
 .art-center {
     min-height: 168px;
     border-color: rgba(245, 190, 86, 0.62);
     box-shadow: 0 0 0 1px rgba(245, 190, 86, 0.24), inset 0 -18px 26px rgba(3, 7, 14, 0.62), 0 14px 30px rgba(0, 0, 0, 0.34);
-    background-image:
-        radial-gradient(circle at 50% 12%, rgba(245, 190, 86, 0.56), rgba(7, 12, 20, 0.22) 48%),
-        url('/img/global.png');
+    background-color: #808080;
+    background-image: url('/img/global.png');
 }
 
 .art-right {
-    background-image:
-        radial-gradient(circle at 82% 24%, rgba(239, 68, 68, 0.54), rgba(7, 12, 20, 0.35) 45%),
-        url('/img/college of com.png');
+    background-color: #000;
+    background-image: url('/img/college of com.png');
 }
 
 .kicker {
@@ -211,7 +205,8 @@ body {
 
 .public-flow-wrap {
     display: grid;
-    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
 }
 
 .public-flow-section h4 {
@@ -222,15 +217,27 @@ body {
     font-size: 0.82rem;
 }
 
+.public-flow-section {
+    border: 1px solid #2d4264;
+    border-radius: 12px;
+    background: rgba(12, 21, 37, 0.7);
+    padding: 8px;
+    overflow-x: auto;
+}
+
+.public-flow-finals {
+    grid-column: 1 / -1;
+}
+
 .flow-grid {
     display: flex;
     align-items: flex-start;
-    gap: 16px;
+    gap: 10px;
     min-width: fit-content;
 }
 
 .flow-round {
-    min-width: 220px;
+    min-width: 170px;
     position: relative;
 }
 
@@ -247,7 +254,7 @@ body {
 .flow-round h5 {
     margin: 0 0 8px 0;
     color: #c9daf9;
-    font-size: 0.8rem;
+    font-size: 0.74rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -261,7 +268,7 @@ body {
     border: 1px solid #35517d;
     border-radius: 10px;
     background: linear-gradient(160deg, rgba(19, 33, 55, 0.96), rgba(15, 25, 40, 0.96));
-    padding: 8px;
+    padding: 6px;
 }
 
 .flow-match.pending {
@@ -279,21 +286,27 @@ body {
 .flow-team {
     color: #f4f8ff;
     font-weight: 700;
-    font-size: 0.82rem;
+    font-size: 0.76rem;
 }
 
 .flow-meta {
     margin-top: 5px;
-    font-size: 0.7rem;
+    font-size: 0.64rem;
     text-transform: uppercase;
     color: #9cb1d3;
 }
 
 .flow-winner-text {
     margin-top: 5px;
-    font-size: 0.72rem;
+    font-size: 0.66rem;
     color: #86efac;
     font-weight: 700;
+}
+
+@media (max-width: 900px) {
+    .public-flow-wrap {
+        grid-template-columns: 1fr;
+    }
 }
 
 .bracket-col {

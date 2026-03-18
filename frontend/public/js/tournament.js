@@ -104,11 +104,9 @@ function renderMatches() {
         const upper = eventMatches.filter((m) => String(m.bracket_type || '').toLowerCase() === 'upper').sort(byRoundOrder);
         const lower = eventMatches
             .filter((m) => String(m.bracket_type || '').toLowerCase() === 'lower')
-            .filter(isMatchActivated)
             .sort(byRoundOrder);
         const finals = eventMatches
             .filter((m) => ['grand_final', 'grand_final_reset'].includes(String(m.bracket_type || '').toLowerCase()))
-            .filter(isMatchActivated)
             .sort(byRoundOrder);
 
         return `
@@ -158,16 +156,16 @@ function renderBracketBoard(matches) {
     }
 
     const groups = [
-        ['UPPER BRACKET FLOW', eventMatches.filter((m) => String(m.bracket_type || '').toLowerCase() === 'upper')],
-        ['LOWER BRACKET FLOW', eventMatches.filter((m) => String(m.bracket_type || '').toLowerCase() === 'lower').filter(isMatchActivated)],
-        ['FINALS FLOW', eventMatches.filter((m) => ['grand_final', 'grand_final_reset'].includes(String(m.bracket_type || '').toLowerCase())).filter(isMatchActivated)]
+        ['UPPER BRACKET FLOW', eventMatches.filter((m) => String(m.bracket_type || '').toLowerCase() === 'upper'), 'public-flow-upper'],
+        ['LOWER BRACKET FLOW', eventMatches.filter((m) => String(m.bracket_type || '').toLowerCase() === 'lower'), 'public-flow-lower'],
+        ['FINALS FLOW', eventMatches.filter((m) => ['grand_final', 'grand_final_reset'].includes(String(m.bracket_type || '').toLowerCase())), 'public-flow-finals']
     ].filter(([, arr]) => arr.length);
 
-    const sections = groups.map(([title, groupMatches]) => renderFlowSection(title, groupMatches)).join('');
+    const sections = groups.map(([title, groupMatches, cls]) => renderFlowSection(title, groupMatches, cls)).join('');
     board.innerHTML = `<div class="public-flow-wrap">${sections}</div>`;
 }
 
-function renderFlowSection(title, matches) {
+function renderFlowSection(title, matches, sectionClass = '') {
     const grouped = matches.reduce((acc, m) => {
         const round = Number(m.round_number || 1);
         if (!acc[round]) acc[round] = [];
@@ -202,7 +200,7 @@ function renderFlowSection(title, matches) {
     }).join('');
 
     return `
-        <section class="public-flow-section">
+        <section class="public-flow-section ${sectionClass}">
             <h4>${escapeHtml(title)}</h4>
             <div class="flow-grid">${roundsHtml}</div>
         </section>
