@@ -217,57 +217,83 @@
             </section>
             <!-- Tournament Section -->
             <section id="tournamentSection" class="content-section">
-                <div class="section-header">
-                    <h1>Tournament Manager</h1>
-                    <div class="header-actions">
-                        <button id="createTournamentBtn" class="btn btn-primary">+ New Tournament</button>
-                    </div>
-                </div>
                 <div class="section-body">
-                    <!-- Tournament Selection -->
-                    <div class="tournament-setup">
-                        <div style="margin-bottom: 20px;">
-                            <label for="tournamentEventSelect" style="display: block; margin-bottom: 8px; font-weight: bold;">Select Tournament Event:</label>
-                            <select id="tournamentEventSelect" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                                <option value="">-- Choose an event --</option>
-                            </select>
+                    <div class="tournament-studio">
+                        <div class="tournament-studio-hero">
+                            <div class="tournament-studio-brand">Bracket HQ</div>
+                            <div class="tournament-studio-topbar">
+                                <div>
+                                    <h1>Tournament Bracket Maker</h1>
+                                    <p>Choose a tournament event, load teams, and generate the bracket directly from the admin panel.</p>
+                                </div>
+                                <button id="createTournamentBtn" class="btn btn-primary tournament-hero-btn">+ New Tournament</button>
+                            </div>
                         </div>
 
-                        <!-- Teams Management -->
-                        <div id="teamsManagementArea" style="display: none; margin-bottom: 20px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                <h3>Participants in Selected Tournament</h3>
-                                <button id="addTeamToTournamentBtn" class="btn btn-secondary">+ Add Team</button>
+                        <div class="tournament-setup tournament-studio-setup">
+                            <div class="tournament-studio-grid">
+                                <div class="tournament-studio-panel">
+                                    <div class="tournament-panel-title">Tournament Event</div>
+                                    <label for="tournamentEventSelect" class="tournament-field-label">Select Event</label>
+                                    <select id="tournamentEventSelect" class="form-control tournament-select">
+                                        <option value="">-- Choose an event --</option>
+                                    </select>
+                                    <p class="tournament-field-help">Only events with tournament mode enabled will appear here.</p>
+                                </div>
+
+                                <div class="tournament-studio-panel">
+                                    <div class="tournament-panel-title">Bracket Format</div>
+                                    <label for="bracketTypeSelect" class="tournament-field-label">Choose Type</label>
+                                    <select id="bracketTypeSelect" class="form-control tournament-select">
+                                        <option value="single_elimination" selected>Single Elimination</option>
+                                        <option value="mobile_legends">Mobile Legends Bracket</option>
+                                        <option value="double_elimination">Double Elimination</option>
+                                    </select>
+                                    <p class="tournament-field-help">Single elimination supports flexible bracket sizes. Double elimination currently expects 8 teams.</p>
+                                </div>
                             </div>
-                            <div id="tournamentTeamsList" class="teams-list"></div>
+
+                            <div id="teamsManagementArea" class="tournament-stage-block" style="display: none;">
+                                <div class="tournament-stage-head">
+                                    <div>
+                                        <div class="tournament-panel-title">Participants</div>
+                                        <p class="tournament-field-help">Teams loaded from the selected event. Remove or add teams before generating the bracket.</p>
+                                    </div>
+                                    <button id="addTeamToTournamentBtn" class="btn btn-secondary">+ Add Team</button>
+                                </div>
+                                <div id="tournamentTeamsList" class="teams-list tournament-participants-list"></div>
+                            </div>
+
+                            <div id="bracketGenerationArea" class="tournament-stage-block" style="display: none;">
+                                <div class="tournament-stage-head">
+                                    <div>
+                                        <div class="tournament-panel-title">Bracket Workspace</div>
+                                        <p class="tournament-field-help">Generate the bracket, switch bracket tabs, and manage live match results below.</p>
+                                    </div>
+                                    <div class="tournament-stage-actions">
+                                        <button id="generateBracketBtn" class="btn btn-primary">Generate Bracket</button>
+                                        <button id="resetBracketBtn" class="btn btn-danger">Reset Bracket</button>
+                                        <button id="refreshMatchesBtn" class="btn btn-secondary">Refresh Matches</button>
+                                        <button id="advanceRoundBtn" class="btn btn-primary" style="display:none;">Proceed to Next Round</button>
+                                    </div>
+                                </div>
+
+                                <div id="adminBracketTabs" class="tournament-tab-row" style="display:none;">
+                                    <button type="button" class="btn btn-secondary admin-bracket-tab active" data-bracket-tab="upper">Upper Bracket</button>
+                                    <button type="button" class="btn btn-secondary admin-bracket-tab" data-bracket-tab="lower">Lower Bracket</button>
+                                    <button type="button" class="btn btn-secondary admin-bracket-tab" data-bracket-tab="finals">Finals</button>
+                                </div>
+
+                                <div id="bracketFlowContainer" class="admin-flow-board"></div>
+                                <div class="tournament-controls-shell">
+                                    <div class="tournament-controls-caption">Match Control Center</div>
+                                    <div id="bracketContainer" class="bracket"></div>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Bracket Generation -->
-                        <div id="bracketGenerationArea" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
-                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom: 12px;">
-                                <label for="bracketTypeSelect" style="font-weight:600;">Bracket Type:</label>
-                                <select id="bracketTypeSelect" class="form-control" style="width: 260px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                                    <option value="single_elimination" selected>Single Elimination (Default)</option>
-                                    <option value="mobile_legends">Mobile Legends Bracket</option>
-                                    <option value="double_elimination">Double Elimination (Upper + Lower)</option>
-                                </select>
-                                <button id="generateBracketBtn" class="btn btn-primary">Generate Bracket</button>
-                                <button id="resetBracketBtn" class="btn btn-danger">Reset Bracket</button>
-                                <button id="refreshMatchesBtn" class="btn btn-secondary">Refresh Matches</button>
-                                <button id="advanceRoundBtn" class="btn btn-primary" style="display:none;">Proceed to Next Round</button>
-                            </div>
-                            <div id="adminBracketTabs" style="display:none; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-                                <button type="button" class="btn btn-secondary admin-bracket-tab active" data-bracket-tab="upper">Upper Bracket</button>
-                                <button type="button" class="btn btn-secondary admin-bracket-tab" data-bracket-tab="lower">Lower Bracket</button>
-                                <button type="button" class="btn btn-secondary admin-bracket-tab" data-bracket-tab="finals">Finals</button>
-                            </div>
-                            <p style="margin:0 0 10px 0; color:#64748b; font-size:0.9em;">Each match below has its own stream link, status, and winner progression. Double elimination shows Upper, Lower, and Finals.</p>
-                            <div id="bracketFlowContainer" class="admin-flow-board"></div>
-                            <div id="bracketContainer" class="bracket"></div>
-                        </div>
+                        <div id="tournamentMessage" class="tourney-message" style="display:none;"></div>
                     </div>
-
-                    <div id="tournamentMessage" class="tourney-message" style="display:none;"></div>
                 </div>
             </section>
         </main>

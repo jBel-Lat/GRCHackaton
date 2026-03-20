@@ -577,11 +577,112 @@
 }
 
 /* Tournament Styles */
+.tournament-studio {
+    background: #f8f9fa;
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid #e0e6ef;
+}
+
+.tournament-studio-hero {
+    padding: 28px 28px 18px;
+    background:
+        radial-gradient(circle at top left, rgba(26, 115, 232, 0.14), transparent 30%),
+        radial-gradient(circle at top right, rgba(52, 168, 83, 0.12), transparent 28%),
+        linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.tournament-studio-brand {
+    display: inline-block;
+    margin-bottom: 10px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #1a73e8;
+}
+
+.tournament-studio-topbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.tournament-studio-topbar h1 {
+    margin: 0 0 6px;
+    font-size: 2rem;
+    line-height: 1;
+    color: #202124;
+    font-weight: 800;
+}
+
+.tournament-studio-topbar p {
+    margin: 0;
+    color: #5f6368;
+    max-width: 760px;
+}
+
+.tournament-hero-btn {
+    align-self: center;
+}
+
 .tournament-setup {
-    padding: 20px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: 24px 28px 28px;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.tournament-studio-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.tournament-studio-panel,
+.tournament-stage-block,
+.tournament-controls-shell {
+    background: #fff;
+    border: 1.5px solid #dadce0;
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+}
+
+.tournament-stage-block {
+    margin-bottom: 20px;
+}
+
+.tournament-panel-title {
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #1a73e8;
+    margin-bottom: 10px;
+}
+
+.tournament-field-label {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #202124;
+}
+
+.tournament-field-help {
+    margin: 8px 0 0;
+    font-size: 0.85rem;
+    color: #5f6368;
+    line-height: 1.45;
+}
+
+.tournament-select {
+    width: 100%;
 }
 
 .tournament-setup select,
@@ -599,6 +700,33 @@
     box-shadow: 0 0 0 3px rgba(155, 15, 6, 0.12);
 }
 
+.tournament-stage-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.tournament-stage-actions,
+.tournament-tab-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.tournament-tab-row {
+    margin-bottom: 12px;
+}
+
+.tournament-participants-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
 .teams-list {
     display: flex;
     flex-direction: column;
@@ -610,9 +738,10 @@
     justify-content: space-between;
     align-items: center;
     padding: 12px;
-    background: #f5f5f5;
-    border-radius: 10px;
-    border-left: 4px solid #9B0F06;
+    background: #fff;
+    border-radius: 12px;
+    border: 1.5px solid #dadce0;
+    border-left: 4px solid #1a73e8;
 }
 
 .tournament-team-card div:first-child {
@@ -625,13 +754,38 @@
 }
 
 .bracket {
-    display: flex;
+    display: block;
     gap: 40px;
-    overflow-x: auto;
-    padding: 20px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    overflow-x: visible;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.tournament-controls-caption {
+    margin-bottom: 14px;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #5f6368;
+}
+
+@media (max-width: 900px) {
+    .tournament-studio-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .tournament-studio-hero,
+    .tournament-setup {
+        padding-left: 18px;
+        padding-right: 18px;
+    }
+
+    .tournament-stage-actions {
+        width: 100%;
+    }
 }
 
 .bracket-round {
