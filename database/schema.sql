@@ -3,14 +3,33 @@
 CREATE DATABASE IF NOT EXISTS hackathon_grading;
 USE hackathon_grading;
 
+-- Admin role table
+CREATE TABLE IF NOT EXISTS admin_role (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    role_name VARCHAR(50) NOT NULL UNIQUE,
+    description VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+INSERT INTO admin_role (role_name, description)
+VALUES
+    ('admin', 'Full administrative access'),
+    ('manager', 'Limited management access'),
+    ('viewer', 'Read-only admin account')
+ON DUPLICATE KEY UPDATE
+    description = VALUES(description);
+
 -- Admin table
 CREATE TABLE IF NOT EXISTS admin (
     id INT PRIMARY KEY AUTO_INCREMENT,
     username VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     full_name VARCHAR(255) NOT NULL,
+    role_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES admin_role(id) ON DELETE SET NULL
 );
 
 -- Panelist table

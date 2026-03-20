@@ -26,6 +26,30 @@ async function resolveAdminRole(connection, admin) {
     let role = 'admin';
 
     try {
+        const [roleRows] = await connection.query(
+            `SELECT ar.role_name
+             FROM admin a
+             LEFT JOIN admin_role ar ON ar.id = a.role_id
+             WHERE a.id = ?
+             LIMIT 1`,
+            [admin.id]
+        );
+        if (roleRows.length && roleRows[0].role_name) {
+            role = String(roleRows[0].role_name).trim().toLowerCase();
+            return role || 'admin';
+        }
+    } catch (err) {
+        // ignore missing table/column and try legacy role sources
+        const message = String(err?.message || '');
+        const ignore = err?.code === 'ER_NO_SUCH_TABLE'
+            || message.includes("doesn't exist")
+            || message.includes('Unknown column');
+        if (!ignore) {
+            throw err;
+        }
+    }
+
+    try {
         // Prefer role column from admin table if it exists.
         const [adminRoleRows] = await connection.query(
             'SELECT role FROM admin WHERE id = ? LIMIT 1',

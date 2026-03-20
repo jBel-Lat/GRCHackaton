@@ -3,8 +3,13 @@
 
 -- Create admin account
 -- Password: admin123
-INSERT INTO admin (username, password, full_name) \
-VALUES ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36DRjk3u', 'System Admin');
+INSERT INTO admin (username, password, full_name, role_id)
+VALUES (
+    'admin',
+    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36DRjk3u',
+    'System Admin',
+    (SELECT id FROM admin_role WHERE role_name = 'admin' LIMIT 1)
+);
 
 -- Create sample panelists
 -- Password: panelist123
