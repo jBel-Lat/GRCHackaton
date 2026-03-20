@@ -479,47 +479,6 @@ function renderBracketFlow(matches) {
         flowContainer.innerHTML = '';
         return;
     }
-
-    const renderFlowGroup = (title, groupMatches) => {
-        if (!groupMatches.length) return '';
-        const visibleMatches = groupMatches.filter(hasReadyOpponent);
-        if (!visibleMatches.length) {
-            return `<div class="admin-flow-section"><h4>${escapeHtml(title)}</h4><p class="tourney-empty-note">No ready matchups yet for this bracket.</p></div>`;
-        }
-        const grouped = visibleMatches.reduce((acc, match) => {
-            const round = Number(match.round_number || 1);
-            if (!acc[round]) acc[round] = [];
-            acc[round].push(match);
-            return acc;
-        }, {});
-        const rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
-        const roundsHtml = rounds.map((round, idx) => {
-            const roundMatches = grouped[round].slice().sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
-            const cards = roundMatches.map((match) => {
-                const status = String(match.status || 'pending').toLowerCase();
-                const winnerLabel = match.winner_team_name
-                    ? `<div class="flow-winner-text">Winner: ${escapeHtml(match.winner_team_name)}</div>`
-                    : '';
-                return `
-                    <div class="flow-match ${status}">
-                        <div class="flow-team">${escapeHtml(match.teamA)}</div>
-                        <div class="flow-vs">vs</div>
-                        <div class="flow-team">${escapeHtml(match.teamB)}</div>
-                        <div class="flow-meta"><span>${escapeHtml(status)}</span></div>
-                        ${winnerLabel}
-                    </div>
-                `;
-            }).join('');
-            return `
-                <div class="flow-round ${idx < rounds.length - 1 ? 'has-next' : ''}">
-                    <h5>Round ${round}</h5>
-                    <div class="flow-round-matches">${cards}</div>
-                </div>
-            `;
-        }).join('');
-        return `<div class="admin-flow-section"><h4>${escapeHtml(title)}</h4><div class="flow-grid">${roundsHtml}</div></div>`;
-    };
-
     const byType = {
         upper: matches.filter((m) => String(m.bracket_type || '').toLowerCase() === 'upper'),
         lower: matches.filter((m) => String(m.bracket_type || '').toLowerCase() === 'lower'),
@@ -528,41 +487,188 @@ function renderBracketFlow(matches) {
     };
 
     if (byType.single.length && !byType.upper.length) {
-        const grouped = byType.single.reduce((acc, match) => {
-            const round = Number(match.round_number || 1);
-            if (!acc[round]) acc[round] = [];
-            acc[round].push(match);
-            return acc;
-        }, {});
-        const rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
-        const html = rounds.map((round, idx) => {
-            const cards = grouped[round].slice().sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0)).map((match) => {
-            const status = String(match.status || 'pending').toLowerCase();
-            return `
-                <div class="flow-match ${status}">
-                    <div class="flow-team">${escapeHtml(match.teamA)}</div>
-                    <div class="flow-vs">vs</div>
-                    <div class="flow-team">${escapeHtml(match.teamB)}</div>
-                    <div class="flow-meta">
-                        <span>${escapeHtml(status)}</span>
-                    </div>
-                </div>
-            `;
-            }).join('');
-            return `<div class="flow-round ${idx < rounds.length - 1 ? 'has-next' : ''}"><h5>Round ${round}</h5><div class="flow-round-matches">${cards}</div></div>`;
-        }).join('');
-        flowContainer.innerHTML = `<div class="flow-grid">${html}</div>`;
+        flowContainer.innerHTML = renderPreviewBracketBoard('Single Elimination', byType.single, { showChampion: true });
         return;
     }
 
     const tab = tournamentState.activeBracketTab;
     if (tab === 'lower') {
-        flowContainer.innerHTML = renderFlowGroup('LOWER BRACKET FLOW', byType.lower);
+        flowContainer.innerHTML = renderPreviewBracketBoard('Lower Bracket', byType.lower);
     } else if (tab === 'finals') {
-        flowContainer.innerHTML = renderFlowGroup('FINALS FLOW', byType.finals);
+        flowContainer.innerHTML = renderPreviewBracketBoard('Finals', byType.finals, { showChampion: true });
     } else {
-        flowContainer.innerHTML = renderFlowGroup('UPPER BRACKET FLOW', byType.upper);
+        flowContainer.innerHTML = renderPreviewBracketBoard('Upper Bracket', byType.upper);
     }
+}
+
+function renderPreviewBracketBoard(title, matches, options = {}) {
+    const { showChampion = false } = options;
+    if (!matches.length) {
+        return `
+            <div class="admin-bracket-hq-shell">
+                <div class="admin-bracket-hq-header">
+                    <div>
+                        <div class="admin-bracket-hq-kicker">Visual Bracket</div>
+                        <h3>${escapeHtml(title)}</h3>
+                    </div>
+                </div>
+                <p class="tourney-empty-note">No matchups available yet.</p>
+            </div>
+        `;
+    }
+
+    const grouped = groupMatchesByRound(matches);
+    const roundNumbers = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+    const rounds = roundNumbers.map((roundNumber) => grouped[roundNumber]);
+    const champion = showChampion ? getPreviewChampionName(matches) : '';
+    const baseMatches = Math.max(1, rounds[0]?.length || 1);
+    const matchHeight = 108;
+
+    const columnsHtml = rounds.map((roundMatches, roundIdx) => {
+        const cellHeight = (baseMatches / Math.max(1, roundMatches.length)) * matchHeight;
+        const cards = roundMatches.map((match, matchIdx) => {
+            const topPad = matchIdx === 0
+                ? Math.max(0, (cellHeight / 2) - (matchHeight / 2))
+                : Math.max(0, cellHeight - matchHeight);
+            const connector = roundIdx < rounds.length - 1
+                ? renderPreviewConnector(cellHeight, matchIdx % 2 === 0, matchHeight)
+                : '';
+            return `
+                <div class="admin-bracket-hq-wrap" style="padding-top:${topPad}px">
+                    ${renderPreviewMatchCard(match)}
+                    ${connector}
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="admin-bracket-hq-column">
+                <div class="admin-bracket-hq-round">${escapeHtml(getPreviewRoundLabel(roundMatches, roundIdx, rounds.length))}</div>
+                <div class="admin-bracket-hq-list">${cards}</div>
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <div class="admin-bracket-hq-shell">
+            <div class="admin-bracket-hq-header">
+                <div>
+                    <div class="admin-bracket-hq-kicker">Visual Bracket</div>
+                    <h3>${escapeHtml(title)}</h3>
+                </div>
+                <div class="admin-bracket-hq-note">Click a match to jump to its admin controls below.</div>
+            </div>
+            <div class="admin-bracket-hq-scroll">
+                <div class="admin-bracket-hq-row">
+                    ${columnsHtml}
+                    ${showChampion ? renderPreviewChampionCard(champion) : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function groupMatchesByRound(matches) {
+    return matches.reduce((acc, match) => {
+        const round = Number(match.round_number || 1);
+        if (!acc[round]) acc[round] = [];
+        acc[round].push(match);
+        acc[round].sort((a, b) => Number(a.match_order || 0) - Number(b.match_order || 0));
+        return acc;
+    }, {});
+}
+
+function getPreviewRoundLabel(roundMatches, roundIdx, totalRounds) {
+    const explicit = String(roundMatches[0]?.round_name || '').trim();
+    if (explicit) return explicit;
+    if (roundIdx === totalRounds - 1) return 'Final';
+    return `Round ${roundIdx + 1}`;
+}
+
+function renderPreviewMatchCard(match) {
+    const matchId = Number(match.id);
+    const status = String(match.status || 'pending').toLowerCase();
+    const winner = String(match.winner_team_name || '').trim();
+    const teamA = String(match.teamA || 'TBD').trim() || 'TBD';
+    const teamB = String(match.teamB || 'TBD').trim() || 'TBD';
+    const teamAWins = Math.max(0, Number(match.teamA_wins || 0));
+    const teamBWins = Math.max(0, Number(match.teamB_wins || 0));
+    const isClickable = matchId > 0;
+    const classes = ['admin-bracket-hq-match'];
+    if (isClickable) classes.push('clickable');
+    if (status === 'ongoing') classes.push('is-live');
+    if (status === 'finished') classes.push('is-done');
+
+    return `
+        <div class="admin-bracket-hq-outer">
+            <div class="admin-bracket-hq-num ${status === 'ongoing' ? 'is-next' : ''} ${status === 'finished' ? 'is-done' : ''}">
+                <span class="admin-bracket-hq-dot"></span>
+                Match #${Number(match.match_order || match.match_number || match.id)}
+            </div>
+            <button
+                type="button"
+                class="${classes.join(' ')}"
+                onclick="${isClickable ? `focusMatchCard(${matchId})` : ''}"
+                title="Open match controls for ${escapeAttr(teamA)} vs ${escapeAttr(teamB)}"
+            >
+                ${renderPreviewSlot(teamA, teamAWins, getPreviewSlotState(teamA, winner, status))}
+                ${renderPreviewSlot(teamB, teamBWins, getPreviewSlotState(teamB, winner, status))}
+            </button>
+        </div>
+    `;
+}
+
+function renderPreviewSlot(teamName, wins, state) {
+    const name = String(teamName || 'TBD').trim() || 'TBD';
+    const displayName = name === 'TBD' ? 'Waiting...' : name;
+    const score = Number.isFinite(Number(wins)) ? Math.max(0, Number(wins)) : 0;
+    return `
+        <span class="admin-bracket-hq-slot ${state}">
+            <span class="admin-bracket-hq-seed"></span>
+            <span class="admin-bracket-hq-name ${name === 'TBD' ? 'tbd' : ''}">${escapeHtml(displayName)}</span>
+            <span class="admin-bracket-hq-score">${score > 0 ? score : ''}</span>
+        </span>
+    `;
+}
+
+function getPreviewSlotState(teamName, winner, status) {
+    const normalized = String(teamName || '').trim();
+    if (!normalized || normalized.toUpperCase() === 'TBD') return '';
+    if (normalized.toUpperCase() === 'BYE') return 's-bye';
+    if (status === 'finished' && winner) {
+        return normalized === winner ? 's-win' : 's-lose';
+    }
+    return '';
+}
+
+function renderPreviewConnector(cellHeight, isTop, matchHeight) {
+    const half = cellHeight / 2;
+    return `
+        <div class="admin-bracket-hq-connector" style="height:${matchHeight}px">
+            ${isTop
+                ? `<div style="flex:1"></div><div class="admin-bracket-hq-line-h"></div><div class="admin-bracket-hq-line-v" style="height:${half}px"></div>`
+                : `<div class="admin-bracket-hq-line-v" style="height:${half}px"></div><div class="admin-bracket-hq-line-h"></div><div style="flex:1"></div>`}
+        </div>
+    `;
+}
+
+function renderPreviewChampionCard(champion) {
+    return `
+        <div class="admin-bracket-hq-champion-wrap">
+            <div class="admin-bracket-hq-champion">
+                <div class="admin-bracket-hq-cup">Cup</div>
+                <div class="admin-bracket-hq-title">Champion</div>
+                <div class="admin-bracket-hq-name-final">${champion ? escapeHtml(champion) : 'TBD'}</div>
+            </div>
+        </div>
+    `;
+}
+
+function getPreviewChampionName(matches) {
+    const finalMatch = matches
+        .slice()
+        .sort((a, b) => Number(b.round_number || 0) - Number(a.round_number || 0) || Number(b.match_order || 0) - Number(a.match_order || 0))[0];
+    return String(finalMatch?.winner_team_name || '').trim();
 }
 
 function setActiveBracketTab(tabName) {
@@ -636,7 +742,7 @@ function renderMatchCard(match, maxRound) {
     const teamBWins = Math.max(0, Number(match.teamB_wins || 0));
 
     return `
-        <article class="admin-match-card ${status === 'ongoing' ? 'is-ongoing' : ''} ${isLockedRound ? 'round-locked' : ''}" style="border:1px solid ${matchBorder}; border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor}; box-shadow:0 0 0 1px ${matchBorder}33;">
+        <article class="admin-match-card ${status === 'ongoing' ? 'is-ongoing' : ''} ${isLockedRound ? 'round-locked' : ''}" data-match-id="${matchId}" style="border:1px solid ${matchBorder}; border-left:4px solid ${teamAColor}; border-right:4px solid ${teamBColor}; box-shadow:0 0 0 1px ${matchBorder}33;">
             <div class="admin-match-head">
                 <div>
                     <div class="admin-match-id">Match #${Number(match.match_order || 0)}</div>
@@ -965,6 +1071,17 @@ function hasReadyOpponent(match) {
     return true;
 }
 
+function focusMatchCard(matchId) {
+    const card = document.querySelector(`.admin-match-card[data-match-id="${Number(matchId)}"]`);
+    if (!card) return;
+
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('preview-focused');
+    window.setTimeout(() => {
+        card.classList.remove('preview-focused');
+    }, 1800);
+}
+
 function closeAllModals() {
     document.querySelectorAll('.modal').forEach((modal) => {
         modal.style.display = 'none';
@@ -982,6 +1099,7 @@ window.saveMatchSeries = saveMatchSeries;
 window.revertMatchWinner = revertMatchWinner;
 window.saveMatchOpponents = saveMatchOpponents;
 window.advanceToNextRound = advanceToNextRound;
+window.focusMatchCard = focusMatchCard;
 
 document.addEventListener('DOMContentLoaded', () => {
     initTournament();

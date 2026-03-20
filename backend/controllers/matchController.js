@@ -183,6 +183,86 @@ function buildDoubleTemplate8(teams) {
     ];
 }
 
+function nextPowerOfTwo(value) {
+    let size = 2;
+    while (size < value) size *= 2;
+    return size;
+}
+
+function getSingleRoundName(roundNumber, totalRounds) {
+    const roundsRemaining = totalRounds - roundNumber;
+    if (roundsRemaining === 0) return 'Final';
+    if (roundsRemaining === 1) return 'Semifinal';
+    if (roundsRemaining === 2) return 'Quarterfinal';
+    return `Round ${roundNumber}`;
+}
+
+function buildSingleTemplate(teams) {
+    const list = Array.isArray(teams) ? teams.slice() : [];
+    const size = nextPowerOfTwo(Math.max(2, list.length));
+    const totalRounds = Math.log2(size);
+    const template = [];
+    const firstRoundMatches = size / 2;
+    const actualMatches = Math.max(1, list.length - firstRoundMatches);
+    let order = 1;
+    let cursor = 0;
+    let previousRoundKeys = [];
+
+    for (let index = 0; index < firstRoundMatches; index += 1) {
+        const key = `S1M${index + 1}`;
+        const teamA = list[cursor++] || { participant_id: null, team_name: 'BYE' };
+        const teamB = index < actualMatches
+            ? (list[cursor++] || { participant_id: null, team_name: 'BYE' })
+            : { participant_id: null, team_name: 'BYE' };
+
+        template.push({
+            k: key,
+            bt: 'single',
+            rn: getSingleRoundName(1, totalRounds),
+            r: 1,
+            n: index + 1,
+            o: order,
+            ta: teamA,
+            tb: teamB
+        });
+        previousRoundKeys.push(key);
+        order += 1;
+    }
+
+    for (let round = 2; round <= totalRounds; round += 1) {
+        const currentRoundKeys = [];
+        for (let index = 0; index < previousRoundKeys.length; index += 2) {
+            const key = `S${round}M${(index / 2) + 1}`;
+            const leftKey = previousRoundKeys[index];
+            const rightKey = previousRoundKeys[index + 1];
+
+            template.push({
+                k: key,
+                bt: 'single',
+                rn: getSingleRoundName(round, totalRounds),
+                r: round,
+                n: (index / 2) + 1,
+                o: order,
+                sa: `Winner ${leftKey}`,
+                sb: `Winner ${rightKey}`,
+                srcA: leftKey,
+                srcB: rightKey
+            });
+            currentRoundKeys.push(key);
+            order += 1;
+        }
+        previousRoundKeys = currentRoundKeys;
+    }
+
+    for (const match of template) {
+        if (match.r >= totalRounds) continue;
+        const nextKey = `S${match.r + 1}M${Math.floor((match.n - 1) / 2) + 1}`;
+        match.nw = [nextKey, match.n % 2 === 1 ? 'A' : 'B'];
+    }
+
+    return template;
+}
+
 exports.getMatches = async (req, res) => {
     let connection;
     try {
@@ -236,18 +316,72 @@ exports.generateMatches = async (req, res) => {
             }
         } else {
             const ordered = type === 'mobile_legends' ? teams : shuffle(teams);
-            const firstRound = [];
-            for (let i = 0; i < ordered.length; i += 2) {
-                const a = ordered[i];
-                const b = ordered[i + 1] || { participant_id: null, team_name: 'BYE' };
-                firstRound.push({ a, b, idx: (i / 2) + 1 });
-            }
-            for (const r of firstRound) {
-                await connection.query(
-                    `INSERT INTO matches (event_id, bracket_type, round_name, round_number, match_number, match_order, teamA, teamB, teamA_participant_id, teamB_participant_id, source_label_teamA, source_label_teamB, status, winner_team_id, winner_team_name)
-                     VALUES (?, 'single', 'Round 1', 1, ?, ?, ?, ?, ?, ?, 'Seeded Team', ?, ?, ?, ?)`,
-                    [eventId, r.idx, r.idx, r.a.team_name, r.b.team_name, r.a.participant_id, r.b.participant_id, r.b.participant_id ? 'Seeded Team' : 'BYE', r.b.participant_id ? 'pending' : 'finished', r.b.participant_id ? null : r.a.participant_id, r.b.participant_id ? null : r.a.team_name]
+            const tpl = buildSingleTemplate(ordered);
+            const map = new Map();
+            const byeAdvances = [];
+
+            for (const m of tpl) {
+                const teamAName = m.ta?.team_name || 'TBD';
+                const teamBName = m.tb?.team_name || 'TBD';
+                const teamAId = m.ta?.participant_id || null;
+                const teamBId = m.tb?.participant_id || null;
+                const autoWinnerIsA = teamAName !== 'BYE' && teamBName === 'BYE';
+                const autoWinnerIsB = teamBName !== 'BYE' && teamAName === 'BYE';
+                const winnerName = autoWinnerIsA ? teamAName : (autoWinnerIsB ? teamBName : null);
+                const winnerId = autoWinnerIsA ? teamAId : (autoWinnerIsB ? teamBId : null);
+                const loserName = autoWinnerIsA ? teamBName : (autoWinnerIsB ? teamAName : null);
+                const loserId = autoWinnerIsA ? teamBId : (autoWinnerIsB ? teamAId : null);
+                const status = winnerName ? 'finished' : 'pending';
+
+                const [ins] = await connection.query(
+                    `INSERT INTO matches (event_id, bracket_type, round_name, round_number, match_number, match_order, teamA, teamB, teamA_participant_id, teamB_participant_id, source_label_teamA, source_label_teamB, status, winner_team_id, winner_team_name, loser_team_id, loser_team_name)
+                     VALUES (?, 'single', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        eventId,
+                        m.rn,
+                        m.r,
+                        m.n,
+                        m.o,
+                        teamAName,
+                        teamBName,
+                        teamAId,
+                        teamBId,
+                        m.sa || (teamAName === 'BYE' ? 'BYE' : 'Seeded Team'),
+                        m.sb || (teamBName === 'BYE' ? 'BYE' : 'Seeded Team'),
+                        status,
+                        winnerId,
+                        winnerName,
+                        loserId,
+                        loserName
+                    ]
                 );
+
+                const insertedId = Number(ins.insertId);
+                map.set(m.k, insertedId);
+
+                if (winnerName && m.nw?.[0]) {
+                    byeAdvances.push({
+                        matchId: insertedId,
+                        nextKey: m.nw[0],
+                        nextSlot: m.nw[1] || 'A',
+                        winnerName,
+                        winnerId,
+                        roundName: m.rn
+                    });
+                }
+            }
+
+            for (const m of tpl) {
+                await connection.query(
+                    `UPDATE matches SET next_match_winner_id=?, next_match_winner_slot=?, source_match_teamA_id=?, source_match_teamB_id=? WHERE id=?`,
+                    [m.nw?.[0] ? map.get(m.nw[0]) : null, m.nw?.[1] || null, m.srcA ? map.get(m.srcA) : null, m.srcB ? map.get(m.srcB) : null, map.get(m.k)]
+                );
+            }
+
+            for (const advance of byeAdvances) {
+                const nextMatchId = map.get(advance.nextKey);
+                if (!nextMatchId) continue;
+                await setSlot(connection, nextMatchId, advance.nextSlot, advance.winnerName, advance.winnerId, `Advanced from ${advance.roundName}`, advance.matchId);
             }
         }
 
